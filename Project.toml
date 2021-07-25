@@ -1,0 +1,18 @@
+name = "JuliaFromMATLAB"
+uuid = "88578114-2e0c-4679-8b18-24dc4fa60bec"
+authors = ["Jonathan Doucette <jdoucette@physics.ubc.ca> and contributors"]
+version = "0.1.0"
+
+[deps]
+DaemonMode = "d749ddd5-2b29-4920-8305-6ff5a704e36e"
+MAT = "23992714-dd62-5051-b70f-ba57cb901cac"
+
+[compat]
+julia = "1.6"
+
+[extras]
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test", "Random"]
