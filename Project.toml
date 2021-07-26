@@ -8,6 +8,7 @@ DaemonMode = "d749ddd5-2b29-4920-8305-6ff5a704e36e"
 MAT = "23992714-dd62-5051-b70f-ba57cb901cac"
 
 [compat]
+MAT = "0.10"
 julia = "1.6"
 
 [extras]
