@@ -1,0 +1,3 @@
+var documenterSearchIndex = {"docs":
+[{"location":"#JuliaFromMATLAB.jl","page":"Home","title":"JuliaFromMATLAB.jl","text":"","category":"section"},{"location":"#API-Reference","page":"Home","title":"API Reference","text":"","category":"section"},{"location":"","page":"Home","title":"Home","text":"JuliaFromMATLAB","category":"page"},{"location":"","page":"Home","title":"Home","text":"JuliaFromMATLAB","category":"page"},{"location":"#JuliaFromMATLAB","page":"Home","title":"JuliaFromMATLAB","text":"JuliaFromMATLAB\n\nUtilities module for calling Julia from MATLAB.\n\n\n\n\n\n","category":"module"}]
+}
