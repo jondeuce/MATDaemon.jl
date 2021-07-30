@@ -12,6 +12,7 @@ import Pkg
 # Server port number. This can be changed to any valid port
 const JL_INPUT = "jl_input.mat"
 const JL_OUTPUT = "jl_output.mat"
+const JL_FINISHED = "jl_finished.txt"
 
 function serve(port)
     DaemonMode.serve(port)
@@ -31,26 +32,73 @@ function kill(port)
 end
 
 function run(workspace)
-    inputs = MAT.matread(joinpath(workspace, JL_INPUT))
-    display(inputs); println("")
+    input = MAT.matread(joinpath(workspace, JL_INPUT))
 
-    if !isempty(inputs["project"])
+    if !isempty(input["project"])
         # Activate user project
-        Pkg.activate(inputs["project"]; io = devnull)
+        Pkg.activate(input["project"]; io = devnull)
     else
         # If project is unspecified, default environment in ~/.julia/environments is activated
         Pkg.activate(; io = devnull)
     end
 
-    args = inputs["args"]
-    kwargs = inputs["kwargs"]
-    kwargs = Pair{Symbol, Any}[Symbol(k) => v for (k,v) in zip(kwargs[1:2:end], kwargs[2:2:end])]
+    # Build expression to evaluate
+    ex = quote
+        $(
+            map(input["modules"]) do mod_name
+                mod = Meta.parse(mod_name)
+                if !input["install"]
+                    # Load module; will fail if not installed
+                    :(import $mod)
+                else
+                    # Try loading module; if module fails to load, try installing and then loading
+                    :(
+                        try
+                            import $mod
+                        catch e
+                            import Pkg
+                            Pkg.add($(mod_name))
+                            import $mod
+                        end
+                    )
+                end
+            end...
+        )
+        $(Meta.parse(input["f"]))
+    end
 
-    f = Main.eval(Meta.parse(inputs["f"]))
-    outputs = Base.invokelatest(f, args...; kwargs...)
-    display(outputs); println("")
+    # Save expression to temp file for debugging
+    tempfile_dir = mkpath(joinpath(input["workspace"], "tempfiles"))
+    open(jlcall_tempname(tempfile_dir) * ".jl"; write = true) do io
+        println(io, string(ex))
+    end
+
+    # Evaluate expression and call returned function
+    f = Main.eval(ex)
+    args = input["args"]
+    kwargs = input["kwargs"]
+    kwargs = Pair{Symbol, Any}[Symbol(k) => v for (k,v) in zip(kwargs[1:2:end], kwargs[2:2:end])]
+    output = Base.invokelatest(f, args...; kwargs...)
+
+    # Save outputs
+    MAT.matwrite(
+        joinpath(workspace, JL_OUTPUT),
+        Dict{String,Any}("output" => matlabify(output))
+    )
+    touch(joinpath(workspace, JL_FINISHED))
 
     return nothing
+end
+
+matlabify(x) = Any[x] # by default, interpret as single output
+matlabify(xs::Tuple) = Any[xs...]
+matlabify(xs::NamedTuple) = Any[xs...]
+
+const tempname_count = Ref(0)
+function jlcall_tempname(parent)
+    tmp = lpad(tempname_count[], 4, '0') * "_" * basename(tempname())
+    tempname_count[] += 1
+    return joinpath(parent, tmp)
 end
 
 end # module JuliaFromMATLAB
