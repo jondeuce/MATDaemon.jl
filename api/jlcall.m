@@ -38,7 +38,8 @@ function opts = jlcall_test
         'install', true, ...
         'workspace', relative_path('.jlcall'), ...
         'port', 2999, ...
-        'restart', true ...
+        'restart', true, ...
+        'debug', false ...
     );
 
 end
@@ -46,9 +47,12 @@ end
 function opts = parse_inputs(varargin)
 
     p = inputParser;
+
+    isevenlength = @(x) rem(numel(x), 2) == 0;
+    isnamevaluepairs = @(x) iscell(x) && (isempty(x) || (isevenlength(x) && all(cellfun(@ischar, x(1:2:end)))));
     addRequired(p, 'f', @ischar);
     addOptional(p, 'args', @iscell);
-    addOptional(p, 'kwargs', {}, @iscell);
+    addOptional(p, 'kwargs', {}, @(x) isnamevaluepairs(x));
     addParameter(p, 'julia', 'julia', @ischar);
     addParameter(p, 'project', '', @ischar);
     addParameter(p, 'threads', maxNumCompThreads, @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
@@ -57,24 +61,17 @@ function opts = parse_inputs(varargin)
     addParameter(p, 'workspace', relative_path('.jlcall'), @ischar);
     addParameter(p, 'port', 3000, @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
     addParameter(p, 'restart', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
-    parse(p, varargin{:});
+    addParameter(p, 'debug', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
 
+    parse(p, varargin{:});
     opts = p.Results;
-    isevenlength = @(x) rem(numel(x), 2) == 0;
-    isnamevaluepairs = @(x) isempty(x) || (isevenlength(x) && all(cellfun(@ischar, x(1:2:end))));
-    if ~isnamevaluepairs(opts.kwargs)
-        error('The value of ''kwargs'' is invalid. It must be a cell array of name-value pairs');
-    end
-    opts.args = reshape(opts.args, [], 1);
-    opts.kwargs = reshape(opts.kwargs, [], 1);
 
 end
 
-function try_run(cmd)
+function try_run(opts, cmd)
     [st, ~] = system(cmd);
-    fprintf('Command:\n\t%s\nStatus = %d\n', cmd, st);
-    if st ~= 0
-        error('Error running command:\n\t%s\n', cmd)
+    if opts.debug
+        fprintf('Command (status = %d):\n\t%s\n', st, cmd);
     end
 end
 
@@ -105,7 +102,7 @@ function st = call_server(opts)
     save(fullfile(opts.workspace, 'jl_input.mat'), '-struct', 'opts', '-v7.3');
 
     % Create system command and call out to julia
-    try_run([build_command(opts, 'client'), ' ', server_script]);
+    try_run(opts, [build_command(opts, 'client'), ' ', server_script]);
 
 end
 
@@ -118,7 +115,7 @@ function init_workspace(opts)
         %TODO 'Pkg.add(Pkg.PackageSpec(url = "https://github.com/jondeuce/JuliaFromMATLAB.jl"); io = devnull)'
     });
 
-    try_run([build_command(opts, 'client'), ' ', install_script]);
+    try_run(opts, [build_command(opts, 'client'), ' ', install_script]);
 
 end
 
@@ -130,7 +127,7 @@ function init_server(opts)
         sprintf('JuliaFromMATLAB.serve(%d)', opts.port)
     });
 
-    try_run([build_command(opts, 'startup'), ' ', init_script, ' &']);
+    try_run(opts, [build_command(opts, 'startup'), ' ', init_script, ' &']);
 
 end
 
@@ -141,9 +138,9 @@ function kill_server(opts)
     kill_script = build_julia_script(opts, 'JuliaFromMATLAB', {
         sprintf('JuliaFromMATLAB.kill(%d)', opts.port)
     });
-    try_run([build_command(opts, 'client'), ' ', kill_script]);
+    try_run(opts, [build_command(opts, 'client'), ' ', kill_script]);
     delete(fullfile(opts.workspace, 'tempfiles', '*'));
-%     delete(fullfile(opts.workspace, '*.mat'));
+    delete(fullfile(opts.workspace, '*.mat'));
 
 end
 
@@ -172,9 +169,7 @@ function start_server(opts)
         init_server(opts);
 
         % Wait for server ping
-        while ~ping_server(opts)
-            pause(1);
-        end
+        ping_server(opts);
 
         % Kill server on Matlab exit
         cleanup_server = onCleanup(@() kill_server(opts));
@@ -184,20 +179,16 @@ end
 
 function succ = ping_server(opts)
 
-    % Create temporary file and try to delete file from julia server
-    ping_file = jlcall_tempname(opts);
-    fclose(fopen(ping_file, 'w'));
-
-    ping_script = build_julia_script(opts, 'Sockets', {
-        'try'
-        sprintf('    Sockets.connect(%d)', opts.port)
-        sprintf('    rm("%s"; force = true)', ping_file)
-        'catch e'
-        'end'
-    });
-
-    try_run([build_command(opts, 'client'), ' ', ping_script]);
-    succ = ~exist(ping_file, 'file');
+    try
+        tcpclient('127.0.0.1', opts.port);
+        succ = true;
+    catch me
+        if strcmp(me.identifier, 'MATLAB:networklib:tcpclient:cannotCreateObject')
+            succ = false;
+        else
+            rethrow(me)
+        end
+    end
 
 end
 
