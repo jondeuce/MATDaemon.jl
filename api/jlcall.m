@@ -3,7 +3,6 @@ function varargout = jlcall(varargin)
 
     % Save Julia input variables + settings to file
     opts = parse_inputs(varargin{:});
-    [~, ~] = mkdir(opts.workspace); % ignore "folder exists" warning
     start_server(opts);
     varargout = call_server(opts);
 
@@ -29,91 +28,6 @@ function opts = parse_inputs(varargin)
 
     parse(p, varargin{:});
     opts = p.Results;
-
-end
-
-function try_run(opts, cmd)
-    st = system(cmd);
-    if opts.debug
-        fprintf('* Command (status = %d):\n\t%s\n', st, cmd);
-    end
-end
-
-function cmd = build_command(opts, mode)
-
-    % Set Julia binary path and flags
-    switch mode
-        case 'startup'
-            flags = sprintf('--startup-file=no --project=%s --optimize=3 --threads=%d', opts.workspace, opts.threads);
-        case 'client'
-            flags = sprintf('--quiet --startup-file=no --compile=min --project=%s', opts.workspace);
-        otherwise
-            error('Unknown mode: ''%s''', mode)
-    end
-
-    cmd = [opts.julia, ' ', flags];
-
-end
-
-function output = call_server(opts)
-
-    % Script to run from the Julia server
-    job_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        sprintf('JuliaFromMATLAB.run("%s")', opts.workspace)
-    });
-
-    % Script to call the Julia server
-    server_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        sprintf('JuliaFromMATLAB.DaemonMode.runfile("%s"; port = %d)', job_script, opts.port)
-    });
-
-    % Save inputs to disk
-    save(fullfile(opts.workspace, 'jl_input.mat'), '-struct', 'opts', '-v7.3');
-
-    % Create system command and call out to julia
-    try_run(opts, [build_command(opts, 'client'), ' ', server_script]);
-
-    % Load outputs from disk
-    output = load(fullfile(opts.workspace, 'jl_output.mat'));
-    output = {output.output{:}};
-
-end
-
-function init_workspace(opts)
-
-    % Install JuliaFromMATLAB into workspace
-    install_script = build_julia_script(opts, 'Pkg', {
-        'println("* Installing JuliaFromMATLAB...")'
-        'Pkg.develop(Pkg.PackageSpec(url = "https://github.com/jondeuce/JuliaFromMATLAB.jl"); io = devnull)'
-        %TODO 'Pkg.add(Pkg.PackageSpec(url = "https://github.com/jondeuce/JuliaFromMATLAB.jl"); io = devnull)'
-    });
-
-    try_run(opts, [build_command(opts, 'client'), ' ', install_script]);
-
-end
-
-function init_server(opts)
-
-    % Load JuliaFromMATLAB, installing it if not already installed in workspace
-    %   see: https://discourse.julialang.org/t/how-to-use-pkg-dependencies-instead-of-pkg-installed/36416/15
-    init_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        sprintf('JuliaFromMATLAB.serve(%d)', opts.port)
-    });
-
-    try_run(opts, [build_command(opts, 'startup'), ' ', init_script, ' &']);
-
-end
-
-% Cleanup function for sending kill signal to Julia server
-function kill_server(opts)
-
-    fprintf('* Killing Julia server\n');
-    kill_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        sprintf('JuliaFromMATLAB.kill(%d)', opts.port)
-    });
-    try_run(opts, [build_command(opts, 'client'), ' ', kill_script]);
-    delete(fullfile(opts.workspace, 'tempfiles', '*'));
-    delete(fullfile(opts.workspace, '*.mat'));
 
 end
 
@@ -152,6 +66,33 @@ function start_server(opts)
 
 end
 
+function init_workspace(opts)
+
+    [~, ~] = mkdir(opts.workspace); % ignore "folder exists" warning
+
+    % Install JuliaFromMATLAB into workspace
+    install_script = build_julia_script(opts, 'Pkg', {
+        'println("* Installing JuliaFromMATLAB...")'
+        'Pkg.develop(Pkg.PackageSpec(url = "https://github.com/jondeuce/JuliaFromMATLAB.jl"); io = devnull)'
+        %TODO 'Pkg.add(Pkg.PackageSpec(url = "https://github.com/jondeuce/JuliaFromMATLAB.jl"); io = devnull)'
+    });
+
+    try_run(opts, [build_command(opts, 'client'), ' ', install_script]);
+
+end
+
+function init_server(opts)
+
+    % Load JuliaFromMATLAB, installing it if not already installed in workspace
+    %   see: https://discourse.julialang.org/t/how-to-use-pkg-dependencies-instead-of-pkg-installed/36416/15
+    init_script = build_julia_script(opts, 'JuliaFromMATLAB', {
+        sprintf('JuliaFromMATLAB.serve(%d)', opts.port)
+    });
+
+    try_run(opts, [build_command(opts, 'startup'), ' ', init_script, ' &']);
+
+end
+
 function succ = ping_server(opts)
 
     try
@@ -167,6 +108,42 @@ function succ = ping_server(opts)
 
 end
 
+function kill_server(opts)
+
+    fprintf('* Killing Julia server\n');
+    kill_script = build_julia_script(opts, 'JuliaFromMATLAB', {
+        sprintf('JuliaFromMATLAB.kill(%d)', opts.port)
+    });
+    try_run(opts, [build_command(opts, 'client'), ' ', kill_script]);
+    delete(fullfile(opts.workspace, 'tempfiles', '*'));
+    delete(fullfile(opts.workspace, '*.mat'));
+
+end
+
+function output = call_server(opts)
+
+    % Script to run from the Julia server
+    job_script = build_julia_script(opts, 'JuliaFromMATLAB', {
+        sprintf('JuliaFromMATLAB.run("%s")', opts.workspace)
+    });
+
+    % Script to call the Julia server
+    server_script = build_julia_script(opts, 'JuliaFromMATLAB', {
+        sprintf('JuliaFromMATLAB.DaemonMode.runfile("%s"; port = %d)', job_script, opts.port)
+    });
+
+    % Save inputs to disk
+    save(fullfile(opts.workspace, 'jl_input.mat'), '-struct', 'opts', '-v7.3');
+
+    % Create system command and call out to julia
+    try_run(opts, [build_command(opts, 'client'), ' ', server_script]);
+
+    % Load outputs from disk
+    output = load(fullfile(opts.workspace, 'jl_output.mat'));
+    output = {output.output{:}};
+
+end
+
 function jl_script = build_julia_script(opts, pkgs, body)
 
     if nargin < 2; body = {}; end
@@ -176,7 +153,7 @@ function jl_script = build_julia_script(opts, pkgs, body)
     if ischar(body); body = {body}; end
 
     % Create temporary helper Julia script
-    jl_script = [jlcall_tempname(opts), '.jl'];
+    jl_script = [workspace_tempname(opts), '.jl'];
     fid = fopen(jl_script, 'w');
     cleanup_fid = onCleanup(@() fclose(fid));
 
@@ -189,7 +166,30 @@ function jl_script = build_julia_script(opts, pkgs, body)
 
 end
 
-function tmp = jlcall_tempname(opts)
+function cmd = build_command(opts, mode)
+
+    % Set Julia binary path and flags
+    switch mode
+        case 'startup'
+            flags = sprintf('--startup-file=no --project=%s --optimize=3 --threads=%d', opts.workspace, opts.threads);
+        case 'client'
+            flags = sprintf('--quiet --startup-file=no --compile=min --project=%s', opts.workspace);
+        otherwise
+            error('Unknown mode: ''%s''', mode)
+    end
+
+    cmd = [opts.julia, ' ', flags];
+
+end
+
+function try_run(opts, cmd)
+    st = system(cmd);
+    if opts.debug
+        fprintf('* Command (status = %d):\n\t%s\n', st, cmd);
+    end
+end
+
+function tmp = workspace_tempname(opts)
 
     tempfiles_dir = fullfile(opts.workspace, 'tempfiles');
     [~, ~] = mkdir(tempfiles_dir); % ignore "folder exists" warning
