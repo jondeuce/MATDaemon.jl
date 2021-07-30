@@ -20,6 +20,7 @@ function opts = parse_inputs(varargin)
     addParameter(p, 'julia', 'julia', @ischar);
     addParameter(p, 'project', '', @ischar);
     addParameter(p, 'threads', maxNumCompThreads, @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
+    addParameter(p, 'setup', '', @ischar);
     addParameter(p, 'modules', {}, @iscell);
     addParameter(p, 'workspace', relative_path('.jlcall'), @ischar);
     addParameter(p, 'port', 3000, @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
@@ -44,10 +45,9 @@ function start_server(opts)
     end
 
     if ~is_server_on
-        % Create and run system command to start Julia server
         fprintf('* Starting Julia server\n');
 
-        % Install JuliaFromMATLAB
+        % Install JuliaFromMATLAB if necessary
         if ~exist(fullfile(opts.workspace, 'Project.toml'), 'file')
             init_workspace(opts);
         end
@@ -55,7 +55,7 @@ function start_server(opts)
         % Initialize Julia server
         init_server(opts);
 
-        % Wait for server ping
+        % Wait for server pong
         while ~ping_server(opts)
             pause(0.1);
         end
@@ -73,8 +73,8 @@ function init_workspace(opts)
     % Install JuliaFromMATLAB into workspace
     install_script = build_julia_script(opts, 'Pkg', {
         'println("* Installing JuliaFromMATLAB...")'
-        'Pkg.develop(Pkg.PackageSpec(url = "https://github.com/jondeuce/JuliaFromMATLAB.jl"); io = devnull)'
-        %TODO 'Pkg.add(Pkg.PackageSpec(url = "https://github.com/jondeuce/JuliaFromMATLAB.jl"); io = devnull)'
+        'Pkg.develop(Pkg.PackageSpec(url = "https://github.com/jondeuce/JuliaFromMATLAB.jl"))'
+        %TODO 'Pkg.add(Pkg.PackageSpec(url = "https://github.com/jondeuce/JuliaFromMATLAB.jl"))'
     });
 
     try_run(opts, [build_command(opts, 'client'), ' ', install_script]);
@@ -83,8 +83,6 @@ end
 
 function init_server(opts)
 
-    % Load JuliaFromMATLAB, installing it if not already installed in workspace
-    %   see: https://discourse.julialang.org/t/how-to-use-pkg-dependencies-instead-of-pkg-installed/36416/15
     init_script = build_julia_script(opts, 'JuliaFromMATLAB', {
         sprintf('JuliaFromMATLAB.serve(%d)', opts.port)
     });
@@ -115,7 +113,7 @@ function kill_server(opts)
         sprintf('JuliaFromMATLAB.kill(%d)', opts.port)
     });
     try_run(opts, [build_command(opts, 'client'), ' ', kill_script]);
-    delete(fullfile(opts.workspace, 'tempfiles', '*'));
+    delete(fullfile(opts.workspace, 'tmp', '*'));
     delete(fullfile(opts.workspace, '*.mat'));
 
 end
@@ -135,7 +133,7 @@ function output = call_server(opts)
     % Save inputs to disk
     save(fullfile(opts.workspace, 'jl_input.mat'), '-struct', 'opts', '-v7.3');
 
-    % Create system command and call out to julia
+    % Call out to Julia server
     try_run(opts, [build_command(opts, 'client'), ' ', server_script]);
 
     % Load outputs from disk
@@ -191,9 +189,9 @@ end
 
 function tmp = workspace_tempname(opts)
 
-    tempfiles_dir = fullfile(opts.workspace, 'tempfiles');
-    [~, ~] = mkdir(tempfiles_dir); % ignore "folder exists" warning
-    [dirname, filename] = fileparts(tempname(tempfiles_dir));
+    tmp_dir = fullfile(opts.workspace, 'tmp');
+    [~, ~] = mkdir(tmp_dir); % ignore "folder exists" warning
+    [dirname, filename] = fileparts(tempname(tmp_dir));
 
     persistent filecount
     if isempty(filecount)

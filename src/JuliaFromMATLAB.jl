@@ -47,6 +47,13 @@ function run(workspace)
     # Build expression to evaluate
     ex = quote
         $(
+            if !isempty(input["setup"])
+                [:(include($(input["setup"])))]
+            else
+                []
+            end...
+        )
+        $(
             map(input["modules"]) do mod_name
                 mod = Meta.parse(mod_name)
                 # Load module; will fail if not installed
@@ -57,8 +64,7 @@ function run(workspace)
     end
 
     # Save expression to temp file for debugging
-    tempfile_dir = mkpath(joinpath(input["workspace"], "tempfiles"))
-    open(jlcall_tempname(tempfile_dir) * ".jl"; write = true) do io
+    open(jlcall_tempname(mkpath(joinpath(input["workspace"], "tmp"))) * ".jl"; write = true) do io
         println(io, string(MacroTools.prettify(ex)))
     end
 
