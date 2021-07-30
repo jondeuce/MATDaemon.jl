@@ -11,20 +11,7 @@ function varargout = jlcall(varargin)
     % Save Julia input variables + settings to file
     [~, ~] = mkdir(opts.workspace); % ignore "folder exists" warning
     start_server(opts);
-    call_server(opts);
-    varargout = listen_for_output(opts);
-
-end
-
-function output = listen_for_output(opts)
-
-    finished_file = fullfile(opts.workspace, 'jl_finished.txt');
-    while ~exist(finished_file, 'file')
-        pause(0.1);
-    end
-    delete(finished_file);
-    output = load(fullfile(opts.workspace, 'jl_output.mat'));
-    output = output.output;
+    varargout = call_server(opts);
 
 end
 
@@ -38,7 +25,7 @@ function opts = jlcall_test
         'install', true, ...
         'workspace', relative_path('.jlcall'), ...
         'port', 2999, ...
-        'restart', true, ...
+        'restart', false, ...
         'debug', false ...
     );
 
@@ -91,7 +78,7 @@ function cmd = build_command(opts, mode)
 
 end
 
-function st = call_server(opts)
+function output = call_server(opts)
 
     % Create temporary script for calling Julia server
     server_script = build_julia_script(opts, 'JuliaFromMATLAB', {
@@ -103,6 +90,10 @@ function st = call_server(opts)
 
     % Create system command and call out to julia
     try_run(opts, [build_command(opts, 'client'), ' ', server_script]);
+
+    % Load outputs from disk
+    output = load(fullfile(opts.workspace, 'jl_output.mat'));
+    output = output.output;
 
 end
 

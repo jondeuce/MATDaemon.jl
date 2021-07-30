@@ -12,7 +12,6 @@ import Pkg
 # Server port number. This can be changed to any valid port
 const JL_INPUT = "jl_input.mat"
 const JL_OUTPUT = "jl_output.mat"
-const JL_FINISHED = "jl_finished.txt"
 
 function serve(port)
     DaemonMode.serve(port)
@@ -85,7 +84,6 @@ function run(workspace)
         joinpath(workspace, JL_OUTPUT),
         Dict{String,Any}("output" => matlabify(output))
     )
-    touch(joinpath(workspace, JL_FINISHED))
 
     return nothing
 end
