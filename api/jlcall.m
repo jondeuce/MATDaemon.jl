@@ -1,33 +1,11 @@
 function varargout = jlcall(varargin)
 %JLCALL Call Julia from Matlab.
 
-    if nargin == 0
-        varargout = {jlcall_test};
-        return
-    end
-
-    opts = parse_inputs(varargin{:});
-
     % Save Julia input variables + settings to file
+    opts = parse_inputs(varargin{:});
     [~, ~] = mkdir(opts.workspace); % ignore "folder exists" warning
     start_server(opts);
     varargout = call_server(opts);
-
-end
-
-function opts = jlcall_test
-
-    opts = jlcall('x -> LinearAlgebra.norm(x)', ...
-        {1:9}, {}, ...
-        'project', '', ...
-        'threads', 32, ...
-        'modules', {'LinearAlgebra'}, ...
-        'install', true, ...
-        'workspace', relative_path('.jlcall'), ...
-        'port', 2999, ...
-        'restart', false, ...
-        'debug', false ...
-    );
 
 end
 
@@ -44,7 +22,6 @@ function opts = parse_inputs(varargin)
     addParameter(p, 'project', '', @ischar);
     addParameter(p, 'threads', maxNumCompThreads, @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
     addParameter(p, 'modules', {}, @iscell);
-    addParameter(p, 'install', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'workspace', relative_path('.jlcall'), @ischar);
     addParameter(p, 'port', 3000, @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
     addParameter(p, 'restart', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
@@ -56,9 +33,9 @@ function opts = parse_inputs(varargin)
 end
 
 function try_run(opts, cmd)
-    [st, ~] = system(cmd);
+    st = system(cmd);
     if opts.debug
-        fprintf('Command (status = %d):\n\t%s\n', st, cmd);
+        fprintf('* Command (status = %d):\n\t%s\n', st, cmd);
     end
 end
 
@@ -80,9 +57,14 @@ end
 
 function output = call_server(opts)
 
-    % Create temporary script for calling Julia server
-    server_script = build_julia_script(opts, 'JuliaFromMATLAB', {
+    % Script to run from the Julia server
+    job_script = build_julia_script(opts, 'JuliaFromMATLAB', {
         sprintf('JuliaFromMATLAB.run("%s")', opts.workspace)
+    });
+
+    % Script to call the Julia server
+    server_script = build_julia_script(opts, 'JuliaFromMATLAB', {
+        sprintf('JuliaFromMATLAB.DaemonMode.runfile("%s"; port = %d)', job_script, opts.port)
     });
 
     % Save inputs to disk
@@ -93,7 +75,7 @@ function output = call_server(opts)
 
     % Load outputs from disk
     output = load(fullfile(opts.workspace, 'jl_output.mat'));
-    output = output.output;
+    output = {output.output{:}};
 
 end
 
@@ -160,7 +142,9 @@ function start_server(opts)
         init_server(opts);
 
         % Wait for server ping
-        ping_server(opts);
+        while ~ping_server(opts)
+            pause(0.1);
+        end
 
         % Kill server on Matlab exit
         cleanup_server = onCleanup(@() kill_server(opts));

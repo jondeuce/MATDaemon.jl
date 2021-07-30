@@ -7,6 +7,7 @@ module JuliaFromMATLAB
 
 import DaemonMode
 import MAT
+import MacroTools
 import Pkg
 
 # Server port number. This can be changed to any valid port
@@ -31,14 +32,16 @@ function kill(port)
 end
 
 function run(workspace)
+    if workspace ∉ LOAD_PATH
+        pushfirst!(LOAD_PATH, workspace)
+    end
+
     input = MAT.matread(joinpath(workspace, JL_INPUT))
 
-    if !isempty(input["project"])
-        # Activate user project
-        Pkg.activate(input["project"]; io = devnull)
-    else
-        # If project is unspecified, default environment in ~/.julia/environments is activated
-        Pkg.activate(; io = devnull)
+    # Activate user project, if necessary
+    if !isempty(input["project"]) && normpath(dirname(Base.active_project())) != normpath(input["project"])
+        Pkg.activate(input["project"])
+        Pkg.instantiate()
     end
 
     # Build expression to evaluate
@@ -46,21 +49,8 @@ function run(workspace)
         $(
             map(input["modules"]) do mod_name
                 mod = Meta.parse(mod_name)
-                if !input["install"]
-                    # Load module; will fail if not installed
-                    :(import $mod)
-                else
-                    # Try loading module; if module fails to load, try installing and then loading
-                    :(
-                        try
-                            import $mod
-                        catch e
-                            import Pkg
-                            Pkg.add($(mod_name))
-                            import $mod
-                        end
-                    )
-                end
+                # Load module; will fail if not installed
+                :(import $mod)
             end...
         )
         $(Meta.parse(input["f"]))
@@ -69,7 +59,7 @@ function run(workspace)
     # Save expression to temp file for debugging
     tempfile_dir = mkpath(joinpath(input["workspace"], "tempfiles"))
     open(jlcall_tempname(tempfile_dir) * ".jl"; write = true) do io
-        println(io, string(ex))
+        println(io, string(MacroTools.prettify(ex)))
     end
 
     # Evaluate expression and call returned function
@@ -89,13 +79,15 @@ function run(workspace)
 end
 
 matlabify(x) = Any[x] # by default, interpret as single output
+matlabify(::Nothing) = Any[]
+matlabify(::Missing) = Any[]
 matlabify(xs::Tuple) = Any[xs...]
 matlabify(xs::NamedTuple) = Any[xs...]
 
-const tempname_count = Ref(0)
+const jlcall_tempname_count = Ref(0)
 function jlcall_tempname(parent)
-    tmp = lpad(tempname_count[], 4, '0') * "_" * basename(tempname())
-    tempname_count[] += 1
+    tmp = lpad(jlcall_tempname_count[], 4, '0') * "_" * basename(tempname())
+    jlcall_tempname_count[] += 1
     return joinpath(parent, tmp)
 end
 
