@@ -14,10 +14,6 @@ import Pkg
 const JL_INPUT = "jl_input.mat"
 const JL_OUTPUT = "jl_output.mat"
 
-function serve(port)
-    DaemonMode.serve(port)
-end
-
 function kill(port)
     try
         DaemonMode.sendExitCode(port)
@@ -31,7 +27,7 @@ function kill(port)
     return nothing
 end
 
-function run(workspace)
+function run(mod::Module, workspace)
     if workspace ∉ LOAD_PATH
         pushfirst!(LOAD_PATH, workspace)
     end
@@ -55,9 +51,8 @@ function run(workspace)
         )
         $(
             map(input["modules"]) do mod_name
-                mod = Meta.parse(mod_name)
                 # Load module; will fail if not installed
-                :(import $mod)
+                :(import $(Meta.parse(mod_name)))
             end...
         )
         $(Meta.parse(input["f"]))
@@ -69,7 +64,7 @@ function run(workspace)
     end
 
     # Evaluate expression and call returned function
-    f = Main.eval(ex)
+    f = @eval mod $ex
     args = input["args"]
     kwargs = input["kwargs"]
     kwargs = Pair{Symbol, Any}[Symbol(k) => v for (k,v) in zip(kwargs[1:2:end], kwargs[2:2:end])]

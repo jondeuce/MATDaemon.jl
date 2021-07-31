@@ -23,6 +23,7 @@ function opts = parse_inputs(varargin)
     addParameter(p, 'setup', '', @ischar);
     addParameter(p, 'modules', {}, @iscell);
     addParameter(p, 'workspace', relative_path('.jlcall'), @ischar);
+    addParameter(p, 'shared', true, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'port', 3000, @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
     addParameter(p, 'restart', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'debug', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
@@ -83,8 +84,16 @@ end
 
 function init_server(opts)
 
+    % If shared is false, each server call is executed in it's own Module
+    % to avoid namespace collisions, etc.
+    if opts.shared
+        shared = 'true';
+    else
+        shared = 'false';
+    end
+
     init_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        sprintf('JuliaFromMATLAB.serve(%d)', opts.port)
+        sprintf('JuliaFromMATLAB.DaemonMode.serve(%d, %s)', opts.port, shared)
     });
 
     try_run(opts, [build_command(opts, 'startup'), ' ', init_script, ' &']);
@@ -122,7 +131,7 @@ function output = call_server(opts)
 
     % Script to run from the Julia server
     job_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        sprintf('JuliaFromMATLAB.run("%s")', opts.workspace)
+        sprintf('JuliaFromMATLAB.run(@__MODULE__, "%s")', opts.workspace)
     });
 
     % Script to call the Julia server
