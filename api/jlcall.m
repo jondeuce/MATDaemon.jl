@@ -12,11 +12,9 @@ function opts = parse_inputs(varargin)
 
     p = inputParser;
 
-    isevenlength = @(x) rem(numel(x), 2) == 0;
-    isnamevaluepairs = @(x) iscell(x) && (isempty(x) || (isevenlength(x) && all(cellfun(@ischar, x(1:2:end)))));
-    addRequired(p, 'f', @ischar);
-    addOptional(p, 'args', @iscell);
-    addOptional(p, 'kwargs', {}, @(x) isnamevaluepairs(x));
+    addOptional(p, 'f', 'identity', @ischar);
+    addOptional(p, 'args', {}, @iscell);
+    addOptional(p, 'kwargs', struct, @isstruct);
     addParameter(p, 'julia', 'julia', @ischar);
     addParameter(p, 'project', '', @ischar);
     addParameter(p, 'threads', maxNumCompThreads, @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
@@ -27,6 +25,7 @@ function opts = parse_inputs(varargin)
     addParameter(p, 'port', 3000, @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
     addParameter(p, 'restart', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'debug', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
+    addParameter(p, 'verbose', true, @(x) validateattributes(x, {'logical'}, {'scalar'}));
 
     parse(p, varargin{:});
     opts = p.Results;
@@ -46,7 +45,9 @@ function start_server(opts)
     end
 
     if ~is_server_on
-        fprintf('* Starting Julia server\n');
+        if opts.verbose || opts.debug
+            fprintf('* Starting Julia server\n');
+        end
 
         % Install JuliaFromMATLAB if necessary
         if ~exist(fullfile(opts.workspace, 'Project.toml'), 'file')
@@ -86,14 +87,8 @@ function init_server(opts)
 
     % If shared is false, each server call is executed in it's own Module
     % to avoid namespace collisions, etc.
-    if opts.shared
-        shared = 'true';
-    else
-        shared = 'false';
-    end
-
     init_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        sprintf('JuliaFromMATLAB.DaemonMode.serve(%d, %s)', opts.port, shared)
+        sprintf('JuliaFromMATLAB.DaemonMode.serve(%d, %s)', opts.port, bool_string(opts.shared))
     });
 
     try_run(opts, [build_command(opts, 'startup'), ' ', init_script, ' &']);
@@ -117,9 +112,11 @@ end
 
 function kill_server(opts)
 
-    fprintf('* Killing Julia server\n');
+    if opts.verbose || opts.debug
+        fprintf('* Killing Julia server\n');
+    end
     kill_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        sprintf('JuliaFromMATLAB.kill(%d)', opts.port)
+        sprintf('JuliaFromMATLAB.kill(%d; verbose = %s)', opts.port, bool_string(opts.verbose || opts.debug))
     });
     try_run(opts, [build_command(opts, 'client'), ' ', kill_script]);
     delete(fullfile(opts.workspace, 'tmp', '*'));
@@ -131,7 +128,7 @@ function output = call_server(opts)
 
     % Script to run from the Julia server
     job_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        sprintf('JuliaFromMATLAB.run(@__MODULE__, "%s")', opts.workspace)
+        sprintf('JuliaFromMATLAB.run(@__MODULE__; workspace = "%s")', opts.workspace)
     });
 
     % Script to call the Julia server
@@ -147,7 +144,7 @@ function output = call_server(opts)
 
     % Load outputs from disk
     output = load(fullfile(opts.workspace, 'jl_output.mat'));
-    output = {output.output{:}};
+    output = output.output;
 
 end
 
@@ -190,10 +187,12 @@ function cmd = build_command(opts, mode)
 end
 
 function try_run(opts, cmd)
+
     st = system(cmd);
     if opts.debug
         fprintf('* Command (status = %d):\n\t%s\n', st, cmd);
     end
+
 end
 
 function tmp = workspace_tempname(opts)
@@ -210,6 +209,16 @@ function tmp = workspace_tempname(opts)
     end
     prefix = pad(num2str(filecount), 4, 'left', '0');
     tmp = fullfile(dirname, [prefix, '_mat_', filename]);
+
+end
+
+function str = bool_string(b)
+
+    if b
+        str = 'true';
+    else
+        str = 'false';
+    end
 
 end
 
