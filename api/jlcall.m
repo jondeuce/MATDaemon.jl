@@ -12,7 +12,7 @@ function opts = parse_inputs(varargin)
 
     p = inputParser;
 
-    addOptional(p, 'f', 'identity', @ischar);
+    addOptional(p, 'f', '(args...; kwargs...) -> nothing', @ischar);
     addOptional(p, 'args', {}, @iscell);
     addOptional(p, 'kwargs', struct, @isstruct);
     addParameter(p, 'julia', 'julia', @ischar);
@@ -24,6 +24,7 @@ function opts = parse_inputs(varargin)
     addParameter(p, 'shared', true, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'port', 3000, @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
     addParameter(p, 'restart', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
+    addParameter(p, 'gc', true, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'debug', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'verbose', true, @(x) validateattributes(x, {'logical'}, {'scalar'}));
 
@@ -34,7 +35,7 @@ end
 
 function start_server(opts)
 
-    % mlock %TODO Prevent MATLAB from clearing persistent variables via e.g. `clear all`
+    mlock % Prevent MATLAB from clearing persistent variables via e.g. `clear all`
     persistent cleanup_server % Julia server cleanup object
 
     if opts.restart
@@ -62,7 +63,7 @@ function start_server(opts)
             pause(0.1);
         end
 
-        % Kill server on MATLAB exit
+        % Kill server and collect garbage on MATLAB exit
         cleanup_server = onCleanup(@() kill_server(opts));
     end
 
@@ -119,8 +120,10 @@ function kill_server(opts)
         sprintf('JuliaFromMATLAB.kill(%d; verbose = %s)', opts.port, bool_string(opts.verbose || opts.debug))
     });
     try_run(opts, [build_command(opts, 'client'), ' ', kill_script]);
-    delete(fullfile(opts.workspace, 'tmp', '*'));
-    delete(fullfile(opts.workspace, '*.mat'));
+
+    if opts.gc
+        garbage_collect(opts);
+    end
 
 end
 
@@ -145,6 +148,11 @@ function output = call_server(opts)
     % Load outputs from disk
     output = load(fullfile(opts.workspace, 'jl_output.mat'));
     output = output.output;
+
+    % Collect temporary garbage
+    if opts.gc
+        garbage_collect(opts);
+    end
 
 end
 
@@ -192,6 +200,14 @@ function try_run(opts, cmd)
     if opts.debug
         fprintf('* Command (status = %d):\n\t%s\n', st, cmd);
     end
+
+end
+
+function garbage_collect(opts)
+
+    % Recursively delete workspace folder and contents
+    delete(fullfile(opts.workspace, 'tmp', '*'));
+    delete(fullfile(opts.workspace, '*.mat'));
 
 end
 

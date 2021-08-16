@@ -29,7 +29,7 @@ juliafy_kwargs(xs) = Pair{Symbol, Any}[Symbol(k) => v for (k,v) in xs]
 
 # Julia struct for jlcall.m parser options
 Base.@kwdef struct JLCallOptions
-    f::String                 = "identity"
+    f::String                 = "(args...; kwargs...) -> nothing"
     args::Vector{Any}         = Any[]
     kwargs::Dict{String, Any} = Dict{String, Any}()
     julia::String             = joinpath(Base.Sys.BINDIR, "julia")
@@ -41,6 +41,7 @@ Base.@kwdef struct JLCallOptions
     shared::Bool              = true
     port::Int                 = 3000
     restart::Bool             = false
+    gc::Bool                  = true
     debug::Bool               = false
     verbose::Bool             = false
 end

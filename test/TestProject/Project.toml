@@ -1,0 +1,7 @@
+name = "TestProject"
+uuid = "5df9b713-9a93-47fc-b4d5-f729e356df80"
+authors = ["Jonathan Doucette <jdoucette@physics.ubc.ca>"]
+version = "0.1.0"
+
+[deps]
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"

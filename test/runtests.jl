@@ -1,7 +1,3 @@
-using Test
-using JuliaFromMATLAB
-using JuliaFromMATLAB: JLCallOptions, matlabify
-
 try
     @eval using MATLAB
 
