@@ -1,5 +1,5 @@
 function varargout = jlcall(varargin)
-%JLCALL Call Julia from Matlab.
+%JLCALL Call Julia from MATLAB.
 
     % Save Julia input variables + settings to file
     opts = parse_inputs(varargin{:});
@@ -34,7 +34,7 @@ end
 
 function start_server(opts)
 
-    % mlock %TODO Prevent Matlab from clearing persistent variables via e.g. `clear all`
+    % mlock %TODO Prevent MATLAB from clearing persistent variables via e.g. `clear all`
     persistent cleanup_server % Julia server cleanup object
 
     if opts.restart
@@ -62,7 +62,7 @@ function start_server(opts)
             pause(0.1);
         end
 
-        % Kill server on Matlab exit
+        % Kill server on MATLAB exit
         cleanup_server = onCleanup(@() kill_server(opts));
     end
 

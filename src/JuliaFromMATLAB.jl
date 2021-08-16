@@ -10,45 +10,44 @@ import MAT
 import MacroTools
 import Pkg
 
-# Server port number. This can be changed to any valid port
+# Input/output filenames for communication with MATLAB
 const JL_INPUT = "jl_input.mat"
 const JL_OUTPUT = "jl_output.mat"
 
-# Convert Julia values to Matlab representation
-matlabify(x) = error("Undefined conversion to Matlab type for: $(typeof(x))") # default
-matlabify(x::Number) = x
-matlabify(x::AbstractArray) = x
-matlabify(x::Bool) = x
-matlabify(x::String) = x
+# Convert Julia values to equivalent MATLAB representation
+matlabify(x) = x # default
 matlabify(::Nothing) = Any[]
 matlabify(::Missing) = Any[]
-matlabify(xs::Tuple) = Any[matlabify(x) for x in xs]
-matlabify(xs::Union{<:AbstractDict, <:NamedTuple, <:Base.Iterators.Pairs}) = Dict{String,Any}(string(k) => matlabify(v) for (k,v) in xs)
+matlabify(xs::Tuple) = matlabify_iterable(xs)
+matlabify(xs::Union{<:AbstractDict, <:NamedTuple, <:Base.Iterators.Pairs}) = matlabify_pairs(xs)
 
-# Convert Matlab values to Julia representation
-juliafy(x) = x # default
-juliafy(x::AbstractMatrix) = size(x,2) == 1 ? vec(x) : x
+matlabify_iterable(xs) = Any[matlabify(x) for x in xs]
+matlabify_pairs(xs) = Dict{String, Any}(string(k) => matlabify(v) for (k,v) in xs)
 
-# jlcall options
+# Convert MATLAB values to equivalent Julia representation
+juliafy_kwargs(xs) = Pair{Symbol, Any}[Symbol(k) => v for (k,v) in xs]
+
+# Julia struct for jlcall.m parser options
 Base.@kwdef struct JLCallOptions
-    f::String = "identity"
-    args::Vector{Any} = Any[]
-    kwargs::Dict{String, Any} = Any[]
-    julia::String = joinpath(Base.Sys.BINDIR, "julia")
-    project::String = ""
-    threads::Int = Base.Threads.nthreads()
-    setup::String = ""
-    modules::Vector{Any} = Any[]
-    workspace::String = mktempdir(; prefix = ".jlcall_", cleanup = true)
-    shared::Bool = true
-    port::Int = 3000
-    restart::Bool = false
-    debug::Bool = false
-    verbose::Bool = false
+    f::String                 = "identity"
+    args::Vector{Any}         = Any[]
+    kwargs::Dict{String, Any} = Dict{String, Any}()
+    julia::String             = joinpath(Base.Sys.BINDIR, "julia")
+    project::String           = ""
+    threads::Int              = Base.Threads.nthreads()
+    setup::String             = ""
+    modules::Vector{Any}      = Any[]
+    workspace::String         = mktempdir(; prefix = ".jlcall_", cleanup = true)
+    shared::Bool              = true
+    port::Int                 = 3000
+    restart::Bool             = false
+    debug::Bool               = false
+    verbose::Bool             = false
 end
 
 function JLCallOptions(mxfile::String; kwargs...)
-    opts = Dict{Symbol, Any}(Symbol(k) => juliafy(v) for (k,v) in MAT.matread(mxfile))
+    maybevec(x) = x isa AbstractArray ? vec(x) : x
+    opts = Dict{Symbol, Any}(Symbol(k) => maybevec(v) for (k,v) in MAT.matread(mxfile))
     JLCallOptions(; opts..., kwargs...)
 end
 
@@ -56,10 +55,8 @@ function matlabify(o::JLCallOptions)
     args = Any[o.f, o.args, o.kwargs]
     for k in fieldnames(typeof(o))
         k ∈ (:f, :args, :kwargs) && continue
-        v = getproperty(o, k)
-        (v isa AbstractArray) && (v = vec(v))
         push!(args, string(k))
-        push!(args, v)
+        push!(args, getproperty(o, k))
     end
     return args
 end
@@ -115,15 +112,13 @@ function run(mod::Module; workspace)
 
     # Evaluate expression and call returned function
     f = @eval mod $ex
-    args = opts.args
-    kwargs = Pair{Symbol, Any}[Symbol(k) => v for (k,v) in opts.kwargs]
-    output = Base.invokelatest(f, args...; kwargs...)
+    output = Base.invokelatest(f, opts.args...; juliafy_kwargs(opts.kwargs)...)
     output = output isa Tuple ? Any[matlabify.(output)...] : Any[matlabify(output)]
 
     # Save outputs
     MAT.matwrite(
         joinpath(opts.workspace, JL_OUTPUT),
-        Dict{String,Any}("output" => output)
+        Dict{String, Any}("output" => output)
     )
 
     return nothing
