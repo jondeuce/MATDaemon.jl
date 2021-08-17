@@ -5,6 +5,10 @@ using JuliaFromMATLAB: JLCallOptions, matlabify
 using MATLAB
 using GarishPrint: pprint
 
+####
+#### Wrapper for calling jlcall.m via MATLAB.jl
+####
+
 const TEMP_WORKSPACE = mktempdir(; prefix = ".jlcall_", cleanup = true)
 
 function jlcall(
@@ -27,6 +31,10 @@ function jlcall(
     mxcall(:jlcall, nargout, matlabify(f_opts)...)
 end
 
+####
+#### Misc. testing utilities
+####
+
 mxdict(args...) = Dict{String, Any}(args...)
 
 function pprint_compare(args::NamedTuple)
@@ -48,6 +56,10 @@ typed_is_equal(eq, x, y) = eq(x, y) && typeof(x) == typeof(y)
 
 is_eq(x, y) = recurse_is_equal(typed_is_equal(==), x, y) || pprint_compare((; x, y))
 is_eqq(x, y) = recurse_is_equal(typed_is_equal(===), x, y) || pprint_compare((; x, y))
+
+####
+#### Roundtrip testing jlcall.m
+####
 
 @testset "Basic functionality" begin
     @testset "Null outputs" begin
