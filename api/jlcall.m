@@ -47,7 +47,7 @@ function start_server(opts)
 
     if ~is_server_on
         if opts.verbose || opts.debug
-            fprintf('* Starting Julia server\n');
+            fprintf('* Starting Julia server\n\n');
         end
 
         % Install JuliaFromMATLAB if necessary
@@ -75,24 +75,23 @@ function init_workspace(opts)
 
     % Install JuliaFromMATLAB into workspace
     install_script = build_julia_script(opts, 'Pkg', {
-        'println("* Installing JuliaFromMATLAB...")'
-        'Pkg.develop(Pkg.PackageSpec(url = "https://github.com/jondeuce/JuliaFromMATLAB.jl"))'
-        %TODO 'Pkg.add(Pkg.PackageSpec(url = "https://github.com/jondeuce/JuliaFromMATLAB.jl"))'
+        'println("* Installing JuliaFromMATLAB...\n")'
+        sprintf('Pkg.add(Pkg.PackageSpec(url = "https://github.com/jondeuce/JuliaFromMATLAB.jl", rev = "master"); io = %s)', maybe_stdout(opts.debug))
+        % sprintf('Pkg.develop(Pkg.PackageSpec(url = "https://github.com/jondeuce/JuliaFromMATLAB.jl"); io = %s)', maybe_stdout(opts.debug))
     });
 
-    try_run(opts, install_script, 'client');
+    try_run(opts, install_script, 'client', 'Sending `JuliaFromMATLAB` install script to Julia server');
 
 end
 
 function init_server(opts)
 
-    % If shared is false, each server call is executed in it's own Module
-    % to avoid namespace collisions, etc.
+    % If shared is false, each Julia server call is executed in it's own Module to avoid namespace collisions, etc.
     init_script = build_julia_script(opts, 'JuliaFromMATLAB', {
         sprintf('JuliaFromMATLAB.DaemonMode.serve(%d, %s)', opts.port, bool_string(opts.shared))
     });
 
-    try_run(opts, init_script, 'server');
+    try_run(opts, init_script, 'server', 'Running `DaemonMode.serve` script from Julia server');
 
 end
 
@@ -114,17 +113,17 @@ end
 function kill_server(opts)
 
     if opts.verbose || opts.debug
-        fprintf('* Killing Julia server\n');
+        fprintf('* Killing Julia server\n\n');
     end
 
     kill_script = build_julia_script(opts, 'JuliaFromMATLAB', {
         sprintf('JuliaFromMATLAB.kill(%d; verbose = %s)', opts.port, bool_string(opts.verbose || opts.debug))
     });
 
-    try_run(opts, kill_script, 'client');
+    try_run(opts, kill_script, 'client', 'Sending kill script to Julia server');
 
     if opts.gc
-        garbage_collect(opts);
+        collect_garbage(opts);
     end
 
 end
@@ -138,22 +137,30 @@ function output = call_server(opts)
 
     % Script to call the Julia server
     server_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        sprintf('JuliaFromMATLAB.DaemonMode.runfile("%s"; port = %d)', job_script, opts.port)
+        sprintf('JuliaFromMATLAB.DaemonMode.runfile("%s"; port = %d, output = %s)', job_script, opts.port, maybe_stdout(opts.verbose || opts.debug))
     });
 
     % Save inputs to disk
     save(fullfile(opts.workspace, 'jl_input.mat'), '-struct', 'opts', '-v7.3');
 
     % Call out to Julia server
-    try_run(opts, server_script, 'client');
+    try_run(opts, server_script, 'client', 'Sending `DaemonMode.runfile` script to Julia server');
 
     % Load outputs from disk
-    output = load(fullfile(opts.workspace, 'jl_output.mat'));
-    output = output.output;
+    output_file = fullfile(opts.workspace, 'jl_output.mat');
+    if exist(output_file, 'file')
+        output = load(output_file);
+        output = output.output;
+    else
+        % Throw error before garbage collecting below so that workspace folder can be inspected
+        e.message = sprintf('Julia call failed to produce the expected output file:\n%s', output_file);
+        e.identifier = 'jlcall:fileNotFound';
+        error(e)
+    end
 
     % Collect temporary garbage
     if opts.gc
-        garbage_collect(opts);
+        collect_garbage(opts);
     end
 
 end
@@ -172,15 +179,19 @@ function jl_script = build_julia_script(opts, pkgs, body)
     cleanup_fid = onCleanup(@() fclose(fid));
 
     for ii = 1:length(pkgs)
-        fprintf(fid, sprintf('import %s\n', pkgs{ii}));
+        fprintf(fid, 'import %s\n', pkgs{ii});
     end
     for ii = 1:length(body)
-        fprintf(fid, sprintf('%s\n', body{ii}));
+        fprintf(fid, '%s\n', body{ii});
     end
 
 end
 
-function try_run(opts, script, mode)
+function try_run(opts, script, mode, msg)
+
+    if nargin < 4
+        msg = 'Command';
+    end
 
     % Set Julia environment variables
     setenv('JULIA_NUM_THREADS', num2str(opts.threads));
@@ -202,12 +213,12 @@ function try_run(opts, script, mode)
     st = system(cmd);
 
     if opts.debug
-        fprintf('* Command (status = %d):\n\t%s\n', st, cmd);
+        fprintf('* %s (status = %d):\n*   %s\n\n', msg, st, cmd);
     end
 
 end
 
-function garbage_collect(opts)
+function collect_garbage(opts)
 
     % Recursively delete workspace folder and contents
     delete(fullfile(opts.workspace, 'tmp', '*'));
@@ -232,12 +243,22 @@ function tmp = workspace_tempname(opts)
 
 end
 
-function str = bool_string(b)
+function str = bool_string(bool)
 
-    if b
+    if bool
         str = 'true';
     else
         str = 'false';
+    end
+
+end
+
+function str = maybe_stdout(bool)
+
+    if bool
+        str = 'stdout';
+    else
+        str = 'devnull';
     end
 
 end

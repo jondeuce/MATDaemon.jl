@@ -65,10 +65,10 @@ end
 function kill(port; verbose = false)
     try
         DaemonMode.sendExitCode(port)
-        verbose && println("* Julia server killed")
+        verbose && println("* Julia server killed\n")
     catch e
         if !(e isa Base.IOError)
-            verbose && println("* Julia server inactive; nothing to kill")
+            verbose && println("* Julia server inactive; nothing to kill\n")
             rethrow(e)
         end
     end
@@ -108,13 +108,15 @@ function run(mod::Module; workspace)
 
     if opts.debug
         # Print current environment
-        println("* Module: $(mod)")
-        println("* Load path: $(LOAD_PATH)")
-        println("* Function expression:\n$(MacroTools.prettify(ex))")
+        str_expr = string(MacroTools.prettify(ex))
+        println("* Environment for evaluating Julia expression:")
+        println("*   Module: $(mod)")
+        println("*   Load path: $(LOAD_PATH)")
+        println("*   Function expression:", replace("\n" * chomp(str_expr), "\n" => "\n*     "), "\n")
 
         # Save evaluated expression to temp file
         open(jlcall_tempname(mkpath(joinpath(opts.workspace, "tmp"))) * ".jl"; write = true) do io
-            println(io, string(MacroTools.prettify(ex)))
+            println(io, str_expr)
         end
     end
 
