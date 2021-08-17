@@ -3,6 +3,7 @@ RUN_MATLAB_TESTS = false
 try
     # Try loading MATLAB and adding jlcall.m to the MATLAB load path
     @eval import MATLAB
+    mxcall(:addpath, 0, realpath(joinpath(@__DIR__, "..", "api")))
     global RUN_MATLAB_TESTS = true
 
 catch e

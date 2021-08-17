@@ -8,8 +8,6 @@ mxtuple(args...) = Any[args...]
 
 #### Wrapper for calling jlcall.m via MATLAB.jl
 
-mxcall(:addpath, 0, realpath(joinpath(@__DIR__, "..", "api")))
-
 const TEMP_WORKSPACE = mktempdir(; prefix = ".jlcall_", cleanup = true)
 
 function jlcall(

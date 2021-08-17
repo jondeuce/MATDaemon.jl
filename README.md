@@ -5,7 +5,7 @@
 [![build status](https://github.com/jondeuce/JuliaFromMATLAB.jl/workflows/CI/badge.svg)](https://github.com/jondeuce/JuliaFromMATLAB.jl/actions?query=workflow%3ACI)
 [![codecov.io](https://codecov.io/github/jondeuce/JuliaFromMATLAB.jl/branch/master/graph/badge.svg)](http://codecov.io/github/jondeuce/JuliaFromMATLAB.jl/branch/master)
 
-Call Julia from Matlab.
+Call Julia from MATLAB.
 
 ## Quickstart
 
@@ -124,7 +124,7 @@ Julia functions may require or return types which cannot be directly passed from
 For example, suppose one would like to query `Base.VERSION`.
 Naively calling `jlcall('() -> Base.VERSION')` would fail, as `typeof(Base.VERSION)` is not a `String` but a `VersionNumber`.
 
-One possible rememedy is to define a wrapper function:
+One possible remedy is to define a wrapper function:
 
 ```julia
 # setup.jl
@@ -149,6 +149,5 @@ In general, however, interfacing with complex Julia libraries using MATLAB types
 
 This repository contains utilities for parsing and running Julia code, MATLAB input arguments, and other settings received via [jlcall.m](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m).
 
-The workhorse behind `JuliaFromMATLAB.jl` and `jlcall.m` is [DaemonMode.jl](https://github.com/dmolina/DaemonMode.jl).
-This package is used to start a persistent Julia server in the background.
+The workhorse behind `JuliaFromMATLAB.jl` and `jlcall.m` is [DaemonMode.jl](https://github.com/dmolina/DaemonMode.jl) which is used to start a persistent Julia server in the background.
 MATLAB inputs and Julia ouputs are passed back and forth between MATLAB and the `DaemonMode.jl` server by writing to temporary `.mat` files.
