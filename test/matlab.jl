@@ -122,11 +122,28 @@ end
 end
 
 @testset "Persistent shared environment" begin
-    @test is_eq(jlcall(1, "Setup.mul2", ([1, 2],); setup = joinpath(@__DIR__, "shared_setup.jl"), restart = true), [2, 4])
-    @test is_eq(jlcall(1, "Setup.mul2", ([3.0, 4.0],)), [6.0, 8.0])
-    @test is_eq(jlcall(1, "LinearAlgebra.norm", ([3.0, 4.0],); modules = ["LinearAlgebra", "Statistics"]), 5.0)
-    @test is_eq(jlcall(1, "LinearAlgebra.det", ([1.0 2.0; 3.0 4.0],)), -2.0)
-    @test is_eq(jlcall(1, "x -> Statistics.mean(Setup.mul2(x))", ([1.0, 2.0, 3.0],)), 4.0)
+    # Initialize shared environment
+    @test is_eqq(jlcall(0; setup = joinpath(@__DIR__, "shared_setup.jl"), shared = true, restart = true), nothing)
+
+    # Call custom library code in persistent stateful environment
+    @test is_eq(jlcall(1, "Setup.mul2", ([1, 2],); shared = true), [2, 4])
+    @test is_eq(jlcall(1, "Setup.mul2", ([3.0, 4.0],); shared = true), [6.0, 8.0])
+    @test is_eq(jlcall(1, "LinearAlgebra.norm", ([3.0, 4.0],); modules = ["LinearAlgebra", "Statistics"], shared = true), 5.0)
+    @test is_eq(jlcall(1, "LinearAlgebra.det", ([1.0 2.0; 3.0 4.0],); shared = true), -2.0)
+    @test is_eq(jlcall(1, "x -> Statistics.mean(Setup.mul2(x))", ([1.0, 2.0, 3.0],); shared = true), 4.0)
+end
+
+@testset "Unique environments" begin
+    # Initialize unique environments
+    @test is_eqq(jlcall(0; shared = false, restart = true), nothing)
+
+    # Run custom code in each environment, requiring re-initialization each time
+    @test is_eq(jlcall(1, "Setup.mul2", ([1, 2],); setup = joinpath(@__DIR__, "shared_setup.jl"), shared = false), [2, 4])
+    @test_throws MATLAB.MEngineError jlcall(1, "Setup.mul2", ([1, 2],); shared = false)
+
+    @test is_eq(jlcall(1, "LinearAlgebra.norm", ([3.0, 4.0],); modules = ["LinearAlgebra", "Statistics"], shared = false), 5.0)
+    @test_throws MATLAB.MEngineError jlcall(1, "LinearAlgebra.det", ([1.0 2.0; 3.0 4.0],); shared = false)
+    @test_throws MATLAB.MEngineError jlcall(1, "x -> Statistics.mean(Setup.mul2(x))", ([1.0, 2.0, 3.0],); shared = false)
 end
 
 @testset "Port number" begin
