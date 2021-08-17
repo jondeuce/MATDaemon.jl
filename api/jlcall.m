@@ -80,7 +80,7 @@ function init_workspace(opts)
         %TODO 'Pkg.add(Pkg.PackageSpec(url = "https://github.com/jondeuce/JuliaFromMATLAB.jl"))'
     });
 
-    try_run(opts, [build_command(opts, 'client'), ' ', install_script]);
+    try_run(opts, install_script, 'client');
 
 end
 
@@ -92,7 +92,7 @@ function init_server(opts)
         sprintf('JuliaFromMATLAB.DaemonMode.serve(%d, %s)', opts.port, bool_string(opts.shared))
     });
 
-    try_run(opts, [build_command(opts, 'startup'), ' ', init_script, ' &']);
+    try_run(opts, init_script, 'server');
 
 end
 
@@ -116,10 +116,12 @@ function kill_server(opts)
     if opts.verbose || opts.debug
         fprintf('* Killing Julia server\n');
     end
+
     kill_script = build_julia_script(opts, 'JuliaFromMATLAB', {
         sprintf('JuliaFromMATLAB.kill(%d; verbose = %s)', opts.port, bool_string(opts.verbose || opts.debug))
     });
-    try_run(opts, [build_command(opts, 'client'), ' ', kill_script]);
+
+    try_run(opts, kill_script, 'client');
 
     if opts.gc
         garbage_collect(opts);
@@ -143,7 +145,7 @@ function output = call_server(opts)
     save(fullfile(opts.workspace, 'jl_input.mat'), '-struct', 'opts', '-v7.3');
 
     % Call out to Julia server
-    try_run(opts, [build_command(opts, 'client'), ' ', server_script]);
+    try_run(opts, server_script, 'client');
 
     % Load outputs from disk
     output = load(fullfile(opts.workspace, 'jl_output.mat'));
@@ -178,25 +180,27 @@ function jl_script = build_julia_script(opts, pkgs, body)
 
 end
 
-function cmd = build_command(opts, mode)
+function try_run(opts, script, mode)
+
+    % Set Julia environment variables
+    setenv('JULIA_NUM_THREADS', num2str(opts.threads));
+    setenv('JULIA_PROJECT', opts.workspace);
 
     % Set Julia binary path and flags
     switch mode
-        case 'startup'
-            flags = sprintf('--startup-file=no --project=%s --optimize=3 --threads=%d', opts.workspace, opts.threads);
+        case 'server'
+            flags = '--startup-file=no --optimize=3';
+            detach = ' &';
         case 'client'
-            flags = sprintf('--quiet --startup-file=no --compile=min --project=%s', opts.workspace);
+            flags = '--startup-file=no --optimize=0 --compile=min';
+            detach = '';
         otherwise
             error('Unknown mode: ''%s''', mode)
     end
 
-    cmd = [opts.julia, ' ', flags];
-
-end
-
-function try_run(opts, cmd)
-
+    cmd = [opts.julia, ' ', flags, ' ', script, detach];
     st = system(cmd);
+
     if opts.debug
         fprintf('* Command (status = %d):\n\t%s\n', st, cmd);
     end

@@ -16,13 +16,13 @@ const JL_OUTPUT = "jl_output.mat"
 
 # Convert Julia values to equivalent MATLAB representation
 matlabify(x) = x # default
-matlabify(::Nothing) = Any[]
-matlabify(::Missing) = Any[]
+matlabify(::Nothing) = Float64[] # represent `Nothing` as MATLAB's `[]`
+matlabify(::Missing) = Float64[] # represent `Missing` as MATLAB's `[]`
 matlabify(xs::Tuple) = matlabify_iterable(xs)
 matlabify(xs::Union{<:AbstractDict, <:NamedTuple, <:Base.Iterators.Pairs}) = matlabify_pairs(xs)
 
 matlabify_iterable(xs) = Any[matlabify(x) for x in xs]
-matlabify_pairs(xs) = Dict{String, Any}(string(k) => matlabify(v) for (k,v) in xs)
+matlabify_pairs(xs) = Dict{String, Any}(string(k) => matlabify(v) for (k,v) in pairs(xs))
 
 # Convert MATLAB values to equivalent Julia representation
 juliafy_kwargs(xs) = Pair{Symbol, Any}[Symbol(k) => v for (k,v) in xs]
@@ -106,9 +106,16 @@ function run(mod::Module; workspace)
         $(Meta.parse(opts.f))
     end
 
-    # Save expression to temp file for debugging
-    open(jlcall_tempname(mkpath(joinpath(opts.workspace, "tmp"))) * ".jl"; write = true) do io
-        println(io, string(MacroTools.prettify(ex)))
+    if opts.debug
+        # Print current environment
+        println("* Module: $(mod)")
+        println("* Load path: $LOAD_PATH")
+        println("* Expression:\n$(ex)")
+
+        # Save evaluated expression to temp file
+        open(jlcall_tempname(mkpath(joinpath(opts.workspace, "tmp"))) * ".jl"; write = true) do io
+            println(io, string(MacroTools.prettify(ex)))
+        end
     end
 
     # Evaluate expression and call returned function

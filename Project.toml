@@ -16,9 +16,12 @@ MacroTools = "0.5"
 julia = "1.5"
 
 [extras]
+GarishPrint = "b0ab02a7-8576-43f7-aa76-eaa7c3897c54"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 MATLAB = "10e44e05-a98a-55b3-a45b-ba969058deb6"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "MATLAB", "StaticArrays"]
+test = ["GarishPrint", "LinearAlgebra", "MATLAB", "StaticArrays", "Statistics", "Test"]
