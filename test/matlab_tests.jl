@@ -1,61 +1,5 @@
 using Test
-using Pkg
-using JuliaFromMATLAB
-using JuliaFromMATLAB: JLCallOptions, matlabify
-using MATLAB
-using GarishPrint: pprint
-
-####
-#### Wrapper for calling jlcall.m via MATLAB.jl
-####
-
-const TEMP_WORKSPACE = mktempdir(; prefix = ".jlcall_", cleanup = true)
-
-function jlcall(
-        nargout::Int,
-        f::String = "(args...; kwargs...) -> nothing",
-        f_args::Tuple = (),
-        f_kwargs::NamedTuple = (;);
-        kwargs...,
-    )
-    f_opts = JLCallOptions(;
-        f         = f,
-        args      = matlabify(f_args),
-        kwargs    = matlabify(f_kwargs),
-        workspace = TEMP_WORKSPACE,
-        debug     = false,
-        verbose   = false,
-        gc        = true,
-        kwargs...,
-    )
-    mxcall(:jlcall, nargout, matlabify(f_opts)...)
-end
-
-####
-#### Misc. testing utilities
-####
-
-mxdict(args...) = Dict{String, Any}(args...)
-
-function pprint_compare(args::NamedTuple)
-    for (k, v) in pairs(args)
-        @info "Argument: $k"
-        pprint(v)
-        println("")
-    end
-    return false
-end
-
-recurse_is_equal(eq) = (x, y) -> recurse_is_equal(eq, x, y)
-recurse_is_equal(eq, x, y) = eq(x, y) #default
-recurse_is_equal(eq, x::AbstractDict, y::AbstractDict) = eq(x, y) && all(recurse_is_equal(eq, x[k], y[k]) for k in keys(x))
-recurse_is_equal(eq, x::NamedTuple, y::NamedTuple) = eq(x, y) && all(recurse_is_equal(eq, x[k], y[k]) for k in keys(x))
-
-typed_is_equal(eq) = (x, y) -> typed_is_equal(eq, x, y)
-typed_is_equal(eq, x, y) = eq(x, y) && typeof(x) == typeof(y)
-
-is_eq(x, y) = recurse_is_equal(typed_is_equal(==), x, y) || pprint_compare((; x, y))
-is_eqq(x, y) = recurse_is_equal(typed_is_equal(===), x, y) || pprint_compare((; x, y))
+using MATLAB: MEngineError
 
 ####
 #### Roundtrip testing jlcall.m
@@ -65,7 +9,7 @@ is_eqq(x, y) = recurse_is_equal(typed_is_equal(===), x, y) || pprint_compare((; 
     @testset "Null outputs" begin
         # `Nothing` output is treated specially: MATLAB `varargout` output is empty, requesting output will error
         @test is_eqq(jlcall(0, "() -> nothing"), nothing)
-        @test_throws MATLAB.MEngineError jlcall(1, "() -> nothing")
+        @test_throws MEngineError jlcall(1, "() -> nothing")
 
         # `Missing` output corresponds to empty Matrix{Float64}, i.e. with size 0x0
         @test is_eq(jlcall(1, "() -> missing"), zeros(Float64, 0, 0))
@@ -151,11 +95,11 @@ end
 
     # Run custom code in each environment, requiring re-initialization each time
     @test is_eq(jlcall(1, "Setup.mul2", ([1, 2],); setup = joinpath(@__DIR__, "shared_setup.jl"), shared = false), [2, 4])
-    @test_throws MATLAB.MEngineError jlcall(1, "Setup.mul2", ([1, 2],); shared = false)
+    @test_throws MEngineError jlcall(1, "Setup.mul2", ([1, 2],); shared = false)
 
     @test is_eq(jlcall(1, "LinearAlgebra.norm", ([3.0, 4.0],); modules = ["LinearAlgebra", "Statistics"], shared = false), 5.0)
-    @test_throws MATLAB.MEngineError jlcall(1, "LinearAlgebra.det", ([1.0 2.0; 3.0 4.0],); shared = false)
-    @test_throws MATLAB.MEngineError jlcall(1, "x -> Statistics.mean(Setup.mul2(x))", ([1.0, 2.0, 3.0],); shared = false)
+    @test_throws MEngineError jlcall(1, "LinearAlgebra.det", ([1.0 2.0; 3.0 4.0],); shared = false)
+    @test_throws MEngineError jlcall(1, "x -> Statistics.mean(Setup.mul2(x))", ([1.0, 2.0, 3.0],); shared = false)
 end
 
 @testset "Port number" begin
