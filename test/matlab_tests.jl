@@ -64,12 +64,7 @@ using MATLAB: MEngineError
 end
 
 @testset "Local environment" begin
-    try
-        pushfirst!(LOAD_PATH, joinpath(@__DIR__, "TestProject"))
-        @test is_eq(jlcall(1, "TestProject.inner", ([1.0 2.0; 3.0 4.0; 5.0 6.0],); project = joinpath(@__DIR__, "TestProject"), modules = ["TestProject"], restart = true), [35.0 44.0; 44.0 56.0])
-    finally
-        pop!(LOAD_PATH)
-    end
+    @test is_eq(jlcall(1, "TestProject.inner", ([1.0 2.0; 3.0 4.0; 5.0 6.0],); project = joinpath(@__DIR__, "TestProject"), modules = ["TestProject"], restart = true), [35.0 44.0; 44.0 56.0])
 end
 
 @testset "Setting threads" begin

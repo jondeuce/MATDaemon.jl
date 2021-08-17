@@ -76,16 +76,19 @@ function kill(port; verbose = false)
 end
 
 function run(mod::Module; workspace)
-    opts = JLCallOptions(joinpath(workspace, JL_INPUT); workspace)
+    opts = JLCallOptions(
+        normpath(joinpath(workspace, JL_INPUT));
+        workspace = normpath(workspace),
+    )
 
-    if opts.workspace ∉ LOAD_PATH
-        pushfirst!(LOAD_PATH, opts.workspace)
+    # Push user project onto top of load path
+    if !isempty(opts.project) && normpath(opts.project) ∉ LOAD_PATH
+        pushfirst!(LOAD_PATH, normpath(opts.project))
     end
 
-    # Activate user project, if necessary
-    if !isempty(opts.project) && normpath(dirname(Base.active_project())) != normpath(opts.project)
-        Pkg.activate(opts.project)
-        Pkg.instantiate()
+    # Push workspace into back of load path
+    if opts.workspace ∉ LOAD_PATH
+        push!(LOAD_PATH, opts.workspace)
     end
 
     # Build function expression to evaluate
@@ -129,10 +132,14 @@ function run(mod::Module; workspace)
         Any[matlabify(output)]
 
     # Save outputs
-    MAT.matwrite(
-        joinpath(opts.workspace, JL_OUTPUT),
-        Dict{String, Any}("output" => output)
-    )
+    output_file = joinpath(opts.workspace, JL_OUTPUT)
+    try
+        MAT.matwrite(output_file, Dict{String, Any}("output" => output))
+    catch e
+        println("* ERROR: Unable to write Julia output to .mat:\n*   ", output_file, "\n")
+        rm(output_file; force = true)
+        rethrow(e)
+    end
 
     return nothing
 end
