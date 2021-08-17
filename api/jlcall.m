@@ -102,7 +102,7 @@ function succ = ping_server(opts)
         tcpclient('127.0.0.1', opts.port);
         succ = true;
     catch me
-        if strcmp(me.identifier, 'MATLAB:networklib:tcpclient:cannotCreateObject')
+        if strcmpi(me.identifier, 'MATLAB:networklib:tcpclient:cannotCreateObject')
             succ = false;
         else
             rethrow(me)

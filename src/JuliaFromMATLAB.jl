@@ -16,16 +16,16 @@ const JL_OUTPUT = "jl_output.mat"
 
 # Convert Julia values to equivalent MATLAB representation
 matlabify(x) = x # default
-matlabify(::Nothing) = Float64[] # represent `Nothing` as MATLAB's `[]`
-matlabify(::Missing) = Float64[] # represent `Missing` as MATLAB's `[]`
+matlabify(::Nothing) = zeros(Float64, 0, 0) # represent `Nothing` as MATLAB's `[]`
+matlabify(::Missing) = zeros(Float64, 0, 0) # represent `Missing` as MATLAB's `[]`
 matlabify(xs::Tuple) = matlabify_iterable(xs)
 matlabify(xs::Union{<:AbstractDict, <:NamedTuple, <:Base.Iterators.Pairs}) = matlabify_pairs(xs)
 
 matlabify_iterable(xs) = Any[matlabify(x) for x in xs]
-matlabify_pairs(xs) = Dict{String, Any}(string(k) => matlabify(v) for (k,v) in pairs(xs))
+matlabify_pairs(xs) = Dict{String, Any}(string(k) => matlabify(v) for (k, v) in pairs(xs))
 
 # Convert MATLAB values to equivalent Julia representation
-juliafy_kwargs(xs) = Pair{Symbol, Any}[Symbol(k) => v for (k,v) in xs]
+juliafy_kwargs(xs) = Pair{Symbol, Any}[Symbol(k) => v for (k, v) in xs]
 
 # Julia struct for jlcall.m parser options
 Base.@kwdef struct JLCallOptions
@@ -48,7 +48,7 @@ end
 
 function JLCallOptions(mxfile::String; kwargs...)
     maybevec(x) = x isa AbstractArray ? vec(x) : x
-    opts = Dict{Symbol, Any}(Symbol(k) => maybevec(v) for (k,v) in MAT.matread(mxfile))
+    opts = Dict{Symbol, Any}(Symbol(k) => maybevec(v) for (k, v) in MAT.matread(mxfile))
     JLCallOptions(; opts..., kwargs...)
 end
 
@@ -88,7 +88,7 @@ function run(mod::Module; workspace)
         Pkg.instantiate()
     end
 
-    # Build expression to evaluate
+    # Build function expression to evaluate
     ex = quote
         $(
             if !isempty(opts.setup)
@@ -109,8 +109,8 @@ function run(mod::Module; workspace)
     if opts.debug
         # Print current environment
         println("* Module: $(mod)")
-        println("* Load path: $LOAD_PATH")
-        println("* Expression:\n$(ex)")
+        println("* Load path: $(LOAD_PATH)")
+        println("* Function expression:\n$(MacroTools.prettify(ex))")
 
         # Save evaluated expression to temp file
         open(jlcall_tempname(mkpath(joinpath(opts.workspace, "tmp"))) * ".jl"; write = true) do io
@@ -121,7 +121,10 @@ function run(mod::Module; workspace)
     # Evaluate expression and call returned function
     f = @eval mod $ex
     output = Base.invokelatest(f, opts.args...; juliafy_kwargs(opts.kwargs)...)
-    output = output isa Tuple ? Any[matlabify.(output)...] : Any[matlabify(output)]
+    output =
+        output isa Nothing ? Any[] :
+        output isa Tuple   ? Any[matlabify.(output)...] :
+        Any[matlabify(output)]
 
     # Save outputs
     MAT.matwrite(

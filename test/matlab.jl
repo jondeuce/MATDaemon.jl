@@ -9,7 +9,7 @@ const TEMP_WORKSPACE = mktempdir(; prefix = ".jlcall_", cleanup = true)
 
 function jlcall(
         nargout::Int,
-        f::String = "identity",
+        f::String = "(args...; kwargs...) -> nothing",
         f_args::Tuple = (),
         f_kwargs::NamedTuple = (;);
         kwargs...,
@@ -30,7 +30,7 @@ end
 mxdict(args...) = Dict{String, Any}(args...)
 
 function pprint_compare(args::NamedTuple)
-    for (k,v) in pairs(args)
+    for (k, v) in pairs(args)
         @info "Argument: $k"
         pprint(v)
         println("")
@@ -51,22 +51,25 @@ is_eqq(x, y) = recurse_is_equal(typed_is_equal(===), x, y) || pprint_compare((; 
 
 @testset "Basic functionality" begin
     @testset "Null outputs" begin
-        for null in [missing, nothing]
-            @test is_eqq(jlcall(0, "(args...; kwargs...) -> $(null)", (rand(3), "abc")), nothing)
-            @test is_eq(jlcall(1, "(args...; kwargs...) -> $(null)", (rand(3), "abc")), Float64[])
-        end
+        # `Nothing` output is treated specially: MATLAB `varargout` output is empty, requesting output will error
+        @test is_eqq(jlcall(0, "() -> nothing"), nothing)
+        @test_throws MATLAB.MEngineError jlcall(1, "() -> nothing")
+
+        # `Missing` output corresponds to empty Matrix{Float64}, i.e. with size 0x0
+        @test is_eq(jlcall(1, "() -> missing"), zeros(Float64, 0, 0))
     end
-    @testset "Nested keyword args" begin
-        for (kws, ret) in [
+
+    @testset "Nested (kw)args" begin
+        for (jl, mx) in [
             (
                 a = 1,
                 b = "abc",
-                c = [1,2],
+                c = [1, 2],
                 d = ones(Float32, 3, 3)
             ) => mxdict(
                 "a" => 1,
                 "b" => "abc",
-                "c" => [1,2],
+                "c" => [1, 2],
                 "d" => ones(Float32, 3, 3),
             ),
             (
@@ -79,6 +82,7 @@ is_eqq(x, y) = recurse_is_equal(typed_is_equal(===), x, y) || pprint_compare((; 
                         ),
                     )
                 ),
+                g = zeros(1, 1, 2, 1),
             ) => mxdict(
                 "a" => mxdict(
                     "b" => [1.0 2.0],
@@ -89,9 +93,16 @@ is_eqq(x, y) = recurse_is_equal(typed_is_equal(===), x, y) || pprint_compare((; 
                         ),
                     ),
                 ),
+                "g" => zeros(1, 1, 2),
             )
         ]
-            @test is_eq(jlcall(1, "(args...; kwargs...) -> JuliaFromMATLAB.matlabify(kwargs)", (), kws; modules = ["JuliaFromMATLAB"]), ret)
+            kwargs = deepcopy(jl)
+            ret = deepcopy(mx)
+            @test is_eq(jlcall(1, "(args...; kwargs...) -> JuliaFromMATLAB.matlabify(kwargs)", (), kwargs; modules = ["JuliaFromMATLAB"]), ret)
+
+            args = deepcopy(values(jl))
+            ret = deepcopy(Any[mx[string(k)] for k in keys(jl)])
+            @test is_eq(jlcall(1, "(args...; kwargs...) -> JuliaFromMATLAB.matlabify(args)", args, (;); modules = ["JuliaFromMATLAB"]), ret)
         end
     end
 end
@@ -111,9 +122,15 @@ end
 end
 
 @testset "Persistent shared environment" begin
-    @test is_eq(jlcall(1, "Setup.mul2", ([1,2],); setup = joinpath(@__DIR__, "shared_setup.jl"), restart = true), [2,4])
-    @test is_eq(jlcall(1, "Setup.mul2", ([3.0,4.0],)), [6.0,8.0])
-    @test is_eq(jlcall(1, "LinearAlgebra.norm", ([3.0,4.0],); modules = ["LinearAlgebra", "Statistics"]), 5.0)
+    @test is_eq(jlcall(1, "Setup.mul2", ([1, 2],); setup = joinpath(@__DIR__, "shared_setup.jl"), restart = true), [2, 4])
+    @test is_eq(jlcall(1, "Setup.mul2", ([3.0, 4.0],)), [6.0, 8.0])
+    @test is_eq(jlcall(1, "LinearAlgebra.norm", ([3.0, 4.0],); modules = ["LinearAlgebra", "Statistics"]), 5.0)
     @test is_eq(jlcall(1, "LinearAlgebra.det", ([1.0 2.0; 3.0 4.0],)), -2.0)
     @test is_eq(jlcall(1, "x -> Statistics.mean(Setup.mul2(x))", ([1.0, 2.0, 3.0],)), 4.0)
+end
+
+@testset "Port number" begin
+    for port in [1234, 5678]
+        @test is_eqq(jlcall(0, "() -> nothing"; port = port, restart = true), nothing)
+    end
 end
