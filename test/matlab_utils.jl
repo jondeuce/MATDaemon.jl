@@ -1,3 +1,4 @@
+using Pkg
 using JuliaFromMATLAB: JLCallOptions, matlabify
 using MATLAB: mxcall
 
@@ -17,6 +18,14 @@ function jlcall(
         f_kwargs::NamedTuple = (;);
         kwargs...,
     )
+
+    if !isfile(joinpath(TEMP_WORKSPACE, "Project.toml"))
+        curr = Base.active_project()
+        Pkg.activate(TEMP_WORKSPACE; io = devnull)
+        Pkg.develop(; path = normpath(joinpath(@__DIR__, "..")), io = devnull)
+        Pkg.activate(curr; io = devnull)
+    end
+
     f_opts = JLCallOptions(;
         f         = f,
         args      = matlabify(f_args),
@@ -25,7 +34,9 @@ function jlcall(
         debug     = false,
         verbose   = false,
         gc        = true,
+        port      = 1234,
         kwargs...,
     )
+
     mxcall(:jlcall, nargout, matlabify(f_opts)...)
 end

@@ -22,7 +22,7 @@ function opts = parse_inputs(varargin)
     addParameter(p, 'modules', {}, @iscell);
     addParameter(p, 'workspace', relative_path('.jlcall'), @ischar);
     addParameter(p, 'shared', true, @(x) validateattributes(x, {'logical'}, {'scalar'}));
-    addParameter(p, 'port', 3000, @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
+    addParameter(p, 'port', 1337, @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
     addParameter(p, 'restart', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'gc', true, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'debug', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
@@ -46,7 +46,7 @@ function start_server(opts)
     end
 
     if ~is_server_on
-        if opts.verbose || opts.debug
+        if opts.debug
             fprintf('* Starting Julia server\n\n');
         end
 
@@ -77,7 +77,6 @@ function init_workspace(opts)
     install_script = build_julia_script(opts, 'Pkg', {
         'println("* Installing JuliaFromMATLAB...\n")'
         sprintf('Pkg.add(Pkg.PackageSpec(url = "https://github.com/jondeuce/JuliaFromMATLAB.jl", rev = "master"); io = %s)', maybe_stdout(opts.debug))
-        % sprintf('Pkg.develop(Pkg.PackageSpec(url = "https://github.com/jondeuce/JuliaFromMATLAB.jl"); io = %s)', maybe_stdout(opts.debug))
     });
 
     try_run(opts, install_script, 'client', 'Sending `JuliaFromMATLAB` install script to Julia server');
@@ -88,10 +87,10 @@ function init_server(opts)
 
     % If shared is false, each Julia server call is executed in it's own Module to avoid namespace collisions, etc.
     init_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        sprintf('JuliaFromMATLAB.DaemonMode.serve(%d, %s)', opts.port, bool_string(opts.shared))
+        sprintf('JuliaFromMATLAB.start(%d; shared = %s, verbose = %s)', opts.port, bool_string(opts.shared), bool_string(opts.verbose || opts.debug))
     });
 
-    try_run(opts, init_script, 'server', 'Running `DaemonMode.serve` script from Julia server');
+    try_run(opts, init_script, 'server', 'Running `JuliaFromMATLAB.start` script from Julia server');
 
 end
 
@@ -112,7 +111,7 @@ end
 
 function kill_server(opts)
 
-    if opts.verbose || opts.debug
+    if opts.debug
         fprintf('* Killing Julia server\n\n');
     end
 
@@ -132,7 +131,7 @@ function output = call_server(opts)
 
     % Script to run from the Julia server
     job_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        sprintf('JuliaFromMATLAB.run(@__MODULE__; workspace = "%s")', opts.workspace)
+        sprintf('JuliaFromMATLAB.jlcall(@__MODULE__; workspace = "%s")', opts.workspace)
     });
 
     % Script to call the Julia server
@@ -173,7 +172,7 @@ function jl_script = build_julia_script(opts, pkgs, body)
     if ischar(pkgs); pkgs = {pkgs}; end
     if ischar(body); body = {body}; end
 
-    % Create temporary helper Julia script
+    % Create temporary Julia script
     jl_script = [workspace_tempname(opts), '.jl'];
     fid = fopen(jl_script, 'w');
     cleanup_fid = onCleanup(@() fclose(fid));
@@ -209,6 +208,7 @@ function try_run(opts, script, mode, msg)
             error('Unknown mode: ''%s''', mode)
     end
 
+    % Build and run Julia command
     cmd = [opts.julia, ' ', flags, ' ', script, detach];
     st = system(cmd);
 
@@ -236,8 +236,9 @@ function tmp = workspace_tempname(opts)
     if isempty(filecount)
         filecount = 0;
     else
-        filecount = filecount + 1;
+        filecount = mod(filecount + 1, 10000);
     end
+
     prefix = pad(num2str(filecount), 4, 'left', '0');
     tmp = fullfile(dirname, [prefix, '_mat_', filename]);
 

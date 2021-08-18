@@ -98,7 +98,7 @@ end
 end
 
 @testset "Port number" begin
-    for port in [1234, 5678]
+    for port in [2345, 3456]
         @test is_eqq(jlcall(0, "() -> nothing"; port = port, restart = true), nothing)
     end
 end

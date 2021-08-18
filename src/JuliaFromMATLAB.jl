@@ -14,7 +14,9 @@ import Pkg
 const JL_INPUT = "jl_input.mat"
 const JL_OUTPUT = "jl_output.mat"
 
-# Convert Julia values to equivalent MATLAB representation
+"""
+Convert Julia value to equivalent MATLAB representation
+"""
 matlabify(x) = x # default
 matlabify(::Nothing) = zeros(Float64, 0, 0) # represent `Nothing` as MATLAB's `[]`
 matlabify(::Missing) = zeros(Float64, 0, 0) # represent `Missing` as MATLAB's `[]`
@@ -27,7 +29,9 @@ matlabify_pairs(xs) = Dict{String, Any}(string(k) => matlabify(v) for (k, v) in 
 # Convert MATLAB values to equivalent Julia representation
 juliafy_kwargs(xs) = Pair{Symbol, Any}[Symbol(k) => v for (k, v) in xs]
 
-# Julia struct for jlcall.m parser options
+"""
+Julia struct for storing jlcall.m input parser results
+"""
 Base.@kwdef struct JLCallOptions
     f::String                 = "(args...; kwargs...) -> nothing"
     args::Vector{Any}         = Any[]
@@ -62,25 +66,36 @@ function matlabify(o::JLCallOptions)
     return args
 end
 
-function kill(port; verbose = false)
+"""
+Start Julia server.
+"""
+function start(port::Int; shared::Bool, verbose::Bool = false)
+    DaemonMode.serve(port, shared; print_stack = true, async = true, threaded = false)
+    verbose && println("* Julia server started\n")
+    return nothing
+end
+
+"""
+Kill Julia server. If server is already killed, do nothing.
+"""
+function kill(port::Int; verbose::Bool = false)
     try
         DaemonMode.sendExitCode(port)
         verbose && println("* Julia server killed\n")
     catch e
-        if !(e isa Base.IOError)
+        if (e isa Base.IOError) && abs(e.code) == abs(Libc.ECONNREFUSED)
             verbose && println("* Julia server inactive; nothing to kill\n")
-            rethrow(e)
+        else
+            rethrow()
         end
     end
     return nothing
 end
 
-function run(mod::Module; workspace)
-    opts = JLCallOptions(
-        normpath(joinpath(workspace, JL_INPUT));
-        workspace = normpath(workspace),
-    )
-
+"""
+Run Julia expression in module `mod` using jlcall.m input parser results `opts`.
+"""
+function jlcall(mod::Module, opts::JLCallOptions)
     # Push user project onto top of load path
     if !isempty(opts.project) && normpath(opts.project) ∉ LOAD_PATH
         pushfirst!(LOAD_PATH, normpath(opts.project))
@@ -138,17 +153,31 @@ function run(mod::Module; workspace)
     catch e
         println("* ERROR: Unable to write Julia output to .mat:\n*   ", output_file, "\n")
         rm(output_file; force = true)
-        rethrow(e)
+        rethrow()
     end
 
     return nothing
 end
 
-const jlcall_tempname_count = Ref(0)
-function jlcall_tempname(parent)
-    tmp = lpad(jlcall_tempname_count[], 4, '0') * "_" * basename(tempname())
-    jlcall_tempname_count[] += 1
-    return joinpath(parent, tmp)
+"""
+Run Julia expression in module `mod`, loading jlcall.m input parser results from `workspace`.
+"""
+function jlcall(mod::Module; workspace::String)
+    # Load input parser results from workspace
+    workspace = normpath(workspace)
+    opts = JLCallOptions(joinpath(workspace, JL_INPUT); workspace)
+    jlcall(mod, opts)
+end
+
+let
+    # Generate tempnames with numbered prefix for easier debugging
+    local i = Ref(0)
+
+    function jlcall_tempname(parent::String)
+        tmp = lpad(i[], 4, '0') * "_" * basename(tempname())
+        i[] = mod(i[] + 1, 10_000)
+        return joinpath(parent, tmp)
+    end
 end
 
 end # module JuliaFromMATLAB
