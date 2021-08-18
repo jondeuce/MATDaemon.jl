@@ -23,3 +23,9 @@ function pprint_compare(args::NamedTuple)
     end
     return false
 end
+
+#### Misc. utils
+
+mxdict(args...) = Dict{String, Any}(args...)
+mxtuple(args...) = Any[args...]
+mxempty() = zeros(Float64, 0, 0)

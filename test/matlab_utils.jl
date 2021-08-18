@@ -2,11 +2,6 @@ using Pkg
 using JuliaFromMATLAB: JLCallOptions, matlabify
 using MATLAB: mxcall
 
-#### Misc. utils
-
-mxdict(args...) = Dict{String, Any}(args...)
-mxtuple(args...) = Any[args...]
-
 #### Wrapper for calling jlcall.m via MATLAB.jl
 
 const TEMP_WORKSPACE = mktempdir(; prefix = ".jlcall_", cleanup = true)
@@ -22,7 +17,7 @@ function jlcall(
     if !isfile(joinpath(TEMP_WORKSPACE, "Project.toml"))
         curr = Base.active_project()
         Pkg.activate(TEMP_WORKSPACE; io = devnull)
-        Pkg.develop(; path = normpath(joinpath(@__DIR__, "..")), io = devnull)
+        Pkg.develop(; path = realpath(joinpath(@__DIR__, "..")), io = devnull)
         Pkg.activate(curr; io = devnull)
     end
 

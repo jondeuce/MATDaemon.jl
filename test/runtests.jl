@@ -1,3 +1,10 @@
+#### Julia tests
+
+include("utils.jl")
+include("julia_tests.jl")
+
+#### MATLAB tests
+
 # Try loading MATLAB before running MATLAB tests
 RUN_MATLAB_TESTS = false
 try
@@ -11,7 +18,6 @@ catch e
 end
 
 if RUN_MATLAB_TESTS
-    include("utils.jl")
     include("matlab_utils.jl")
     include("matlab_tests.jl")
 end

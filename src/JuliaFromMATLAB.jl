@@ -20,6 +20,7 @@ Convert Julia value to equivalent MATLAB representation
 matlabify(x) = x # default
 matlabify(::Nothing) = zeros(Float64, 0, 0) # represent `Nothing` as MATLAB's `[]`
 matlabify(::Missing) = zeros(Float64, 0, 0) # represent `Missing` as MATLAB's `[]`
+matlabify(x::Symbol) = string(x)
 matlabify(xs::Tuple) = matlabify_iterable(xs)
 matlabify(xs::Union{<:AbstractDict, <:NamedTuple, <:Base.Iterators.Pairs}) = matlabify_pairs(xs)
 
@@ -97,8 +98,8 @@ Run Julia expression in module `mod` using jlcall.m input parser results `opts`.
 """
 function jlcall(mod::Module, opts::JLCallOptions)
     # Push user project onto top of load path
-    if !isempty(opts.project) && normpath(opts.project) ∉ LOAD_PATH
-        pushfirst!(LOAD_PATH, normpath(opts.project))
+    if !isempty(opts.project) && realpath(opts.project) ∉ LOAD_PATH
+        pushfirst!(LOAD_PATH, realpath(opts.project))
     end
 
     # Push workspace into back of load path
@@ -164,7 +165,7 @@ Run Julia expression in module `mod`, loading jlcall.m input parser results from
 """
 function jlcall(mod::Module; workspace::String)
     # Load input parser results from workspace
-    workspace = normpath(workspace)
+    workspace = realpath(workspace)
     opts = JLCallOptions(joinpath(workspace, JL_INPUT); workspace)
     jlcall(mod, opts)
 end
