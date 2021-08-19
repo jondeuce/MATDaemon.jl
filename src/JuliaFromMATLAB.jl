@@ -49,7 +49,7 @@ Base.@kwdef struct JLCallOptions
     gc::Bool                  = true
     debug::Bool               = false
 end
-Base.:(==)(o1::JLCallOptions, o2::JLCallOptions) = all(getproperty(o1, k) == getproperty(o2, k) for k in fieldnames(JLCallOptions))
+Base.:(==)(o1::JLCallOptions, o2::JLCallOptions) = matlabify(o1) == matlabify(o2)
 
 function JLCallOptions(mxfile::String; kwargs...)
     maybevec(x) = x isa AbstractArray ? vec(x) : x
@@ -58,13 +58,7 @@ function JLCallOptions(mxfile::String; kwargs...)
 end
 
 function matlabify(opts::JLCallOptions)
-    args = Any[opts.f, opts.args, opts.kwargs]
-    for k in fieldnames(typeof(opts))
-        k ∈ (:f, :args, :kwargs) && continue
-        push!(args, string(k))
-        push!(args, getproperty(opts, k))
-    end
-    return args
+    return Dict{String, Any}(string(k) => matlabify(getproperty(opts, k)) for k in fieldnames(JLCallOptions))
 end
 
 """

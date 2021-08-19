@@ -106,18 +106,18 @@ end
 end
 
 @testset "jlcall" begin
-    function wrap_call(f, args, kwargs, output)
+    function wrap_call(f, args, kws, output)
         opts = JLCallOptions(;
             f         = f,
             args      = args,
-            kwargs    = kwargs,
+            kwargs    = kws,
             workspace = initialize_workspace(),
             debug     = true,
         )
         input_file = joinpath(opts.workspace, JuliaFromMATLAB.JL_INPUT)
         output_file = joinpath(opts.workspace, JuliaFromMATLAB.JL_OUTPUT)
 
-        MAT.matwrite(input_file, mxdict(string(k) => matlabify(getproperty(opts, k)) for k in fieldnames(typeof(opts))))
+        MAT.matwrite(input_file, matlabify(opts))
         @test isfile(input_file)
         @test opts == JLCallOptions(input_file)
 

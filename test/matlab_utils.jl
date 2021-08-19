@@ -12,7 +12,7 @@ function mx_jl_call(
         kwargs...,
     )
 
-    f_opts = JLCallOptions(;
+    opts = JLCallOptions(;
         f         = f,
         args      = matlabify(f_args),
         kwargs    = matlabify(f_kwargs),
@@ -23,5 +23,12 @@ function mx_jl_call(
         kwargs...,
     )
 
-    mxcall(:jlcall, nargout, matlabify(f_opts)...)
+    mx_args = Any[opts.f, opts.args, opts.kwargs]
+    for k in fieldnames(JLCallOptions)
+        k ∈ (:f, :args, :kwargs) && continue
+        push!(mx_args, string(k))
+        push!(mx_args, getproperty(opts, k))
+    end
+
+    mxcall(:jlcall, nargout, mx_args...)
 end
