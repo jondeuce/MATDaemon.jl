@@ -71,13 +71,16 @@ JuliaFromMATLAB.matlabify(b::B) = mxdict(
     end
 end
 
-@testset "Start/kill server" begin
+@testset "start/kill server" begin
     local port = rand(9000:9999)
 
     # Add two Julia workers; one for running a Julia server, and one for sending the kill signal
-    nprocs = 2
-    addprocs(nprocs; exeflags = ["--project=$(Base.active_project())", "--threads=$(Threads.nthreads())"])
-    @everywhere using JuliaFromMATLAB
+    addprocs(2)
+    @everywhere begin
+        using Pkg
+        Pkg.activate($(Base.active_project()))
+        using JuliaFromMATLAB
+    end
 
     # Start a DaemonMode server on worker 2
     server_task = @spawnat 2 JuliaFromMATLAB.start(port; shared = true, verbose = true)
@@ -85,7 +88,7 @@ end
     # Wait until server is running
     server_running = false
     while !server_running
-        @test DaemonMode.runexpr("@eval Main __SERVER_RUNNING__() = :SERVER_RUNNING"; port) === nothing
+        @test DaemonMode.runexpr("@eval Main __SERVER_RUNNING__() = :SERVER_RUNNING"; port = port) === nothing
         server_running = fetch(@spawnat 2 isdefined(Main, :__SERVER_RUNNING__))
         sleep(1.0)
     end

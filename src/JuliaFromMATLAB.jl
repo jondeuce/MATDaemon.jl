@@ -169,7 +169,7 @@ Run Julia expression in module `mod`, loading jlcall.m input parser results from
 function jlcall(mod::Module; workspace::String)
     # Load input parser results from workspace
     workspace = realpath(workspace)
-    opts = JLCallOptions(joinpath(workspace, JL_INPUT); workspace)
+    opts = JLCallOptions(joinpath(workspace, JL_INPUT); workspace = workspace)
     jlcall(mod, opts)
 end
 

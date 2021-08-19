@@ -8,7 +8,7 @@ function mx_jl_call(
         nargout::Int,
         f::String = "(args...; kwargs...) -> nothing",
         f_args::Tuple = (),
-        f_kwargs::NamedTuple = (;);
+        f_kwargs::NamedTuple = NamedTuple();
         kwargs...,
     )
 

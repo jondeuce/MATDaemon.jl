@@ -5,7 +5,7 @@ using MATLAB: MEngineError
 #### Roundtrip testing jlcall.m
 ####
 
-@testset "Basic functionality" begin
+@testset "basic functionality" begin
     @testset "Null outputs" begin
         # `Nothing` output is treated specially: MATLAB `varargout` output is empty, requesting output will error
         @test is_eqq(mx_jl_call(0, "() -> nothing"), nothing)
@@ -58,21 +58,21 @@ using MATLAB: MEngineError
 
             args = deepcopy(values(jl))
             ret = deepcopy(Any[mx[string(k)] for k in keys(jl)])
-            @test is_eq(mx_jl_call(1, "(args...; kwargs...) -> JuliaFromMATLAB.matlabify(args)", args, (;); modules = ["JuliaFromMATLAB"]), ret)
+            @test is_eq(mx_jl_call(1, "(args...; kwargs...) -> JuliaFromMATLAB.matlabify(args)", args; modules = ["JuliaFromMATLAB"]), ret)
         end
     end
 end
 
-@testset "Local environment" begin
+@testset "local environment" begin
     @test is_eq(mx_jl_call(1, "TestProject.inner", ([1.0 2.0; 3.0 4.0; 5.0 6.0],); project = joinpath(@__DIR__, "TestProject"), modules = ["TestProject"], restart = true), [35.0 44.0; 44.0 56.0])
 end
 
-@testset "Setting threads" begin
+@testset "setting threads" begin
     @test is_eq(mx_jl_call(1, "() -> Base.Threads.nthreads()"; threads = 3, restart = true), 3) # Restart julia with --threads=3
     @test is_eq(mx_jl_call(1, "() -> Base.Threads.nthreads()"; threads = 4), 3) # Setting threads shouldn't change active session
 end
 
-@testset "Persistent shared environment" begin
+@testset "persistent shared environment" begin
     # Initialize shared environment
     @test is_eqq(mx_jl_call(0; setup = joinpath(@__DIR__, "shared_setup.jl"), shared = true, restart = true), nothing)
 
@@ -84,7 +84,7 @@ end
     @test is_eq(mx_jl_call(1, "x -> Statistics.mean(Setup.mul2(x))", ([1.0, 2.0, 3.0],); shared = true), 4.0)
 end
 
-@testset "Unique environments" begin
+@testset "unique environments" begin
     # Initialize unique environments
     @test is_eqq(mx_jl_call(0; shared = false, restart = true), nothing)
 
@@ -97,7 +97,7 @@ end
     @test_throws MEngineError mx_jl_call(1, "x -> Statistics.mean(Setup.mul2(x))", ([1.0, 2.0, 3.0],); shared = false)
 end
 
-@testset "Port number" begin
+@testset "port number" begin
     for port in [2345, 3456]
         @test is_eqq(mx_jl_call(0, "() -> nothing"; port = port, restart = true), nothing)
     end
