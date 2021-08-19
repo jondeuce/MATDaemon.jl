@@ -1,10 +1,19 @@
 function varargout = jlcall(varargin)
 %JLCALL Call Julia from MATLAB.
 
-    % Save Julia input variables + settings to file
+    % Parse inputs
     opts = parse_inputs(varargin{:});
-    start_server(opts);
-    varargout = call_server(opts);
+
+    % Initialize workspace for communicating between MATLAB and Julia
+    init_workspace(opts);
+
+    % Optionally start persistent Julia server
+    if opts.server
+        start_server(opts);
+    end
+
+    % Call Julia
+    varargout = call_julia(opts);
 
 end
 
@@ -15,14 +24,15 @@ function opts = parse_inputs(varargin)
     addOptional(p, 'f', '(args...; kwargs...) -> nothing', @ischar);
     addOptional(p, 'args', {}, @iscell);
     addOptional(p, 'kwargs', struct, @isstruct);
-    addParameter(p, 'julia', 'julia', @ischar);
+    addParameter(p, 'julia', try_find_julia, @ischar);
     addParameter(p, 'project', '', @ischar);
     addParameter(p, 'threads', maxNumCompThreads, @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
     addParameter(p, 'setup', '', @ischar);
     addParameter(p, 'modules', {}, @iscell);
     addParameter(p, 'workspace', relative_path('.jlcall'), @ischar);
+    addParameter(p, 'server', true, @(x) validateattributes(x, {'logical'}, {'scalar'}));
+    addParameter(p, 'port', 3000, @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
     addParameter(p, 'shared', true, @(x) validateattributes(x, {'logical'}, {'scalar'}));
-    addParameter(p, 'port', 1337, @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
     addParameter(p, 'restart', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'gc', true, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'debug', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
@@ -32,45 +42,15 @@ function opts = parse_inputs(varargin)
 
 end
 
-function start_server(opts)
-
-    mlock % Prevent MATLAB from clearing persistent variables via e.g. `clear all`
-    persistent cleanup_server % Julia server cleanup object
-
-    if opts.restart
-        cleanup_server = []; % triggers server cleanup, if server has been started
-        is_server_on = false;
-    else
-        is_server_on = ~isempty(cleanup_server);
-    end
-
-    if ~is_server_on
-        if opts.debug
-            fprintf('* Starting Julia server\n\n');
-        end
-
-        % Install JuliaFromMATLAB if necessary
-        if ~exist(fullfile(opts.workspace, 'Project.toml'), 'file')
-            init_workspace(opts);
-        end
-
-        % Initialize Julia server
-        init_server(opts);
-
-        % Wait for server pong
-        while ~ping_server(opts)
-            pause(0.1);
-        end
-
-        % Kill server and collect garbage on MATLAB exit
-        cleanup_server = onCleanup(@() kill_server(opts));
-    end
-
-end
-
 function init_workspace(opts)
 
-    [~, ~] = mkdir(opts.workspace); % ignore "folder exists" warning
+    % Return if workspace is initialized
+    if exist(opts.workspace, 'dir') && exist(fullfile(opts.workspace, 'Project.toml'), 'file')
+        return
+    end
+
+    % Ignored outputs are needed to mute "folder exists" warning
+    [~, ~] = mkdir(opts.workspace);
 
     % Install JuliaFromMATLAB into workspace
     install_script = build_julia_script(opts, 'Pkg', {
@@ -78,7 +58,7 @@ function init_workspace(opts)
         sprintf('Pkg.add(Pkg.PackageSpec(url = "https://github.com/jondeuce/JuliaFromMATLAB.jl", rev = "master"); io = %s)', maybe_stdout(opts.debug))
     });
 
-    try_run(opts, install_script, 'client', 'Sending `JuliaFromMATLAB` install script to Julia server');
+    try_run(opts, install_script, 'client', 'Running `JuliaFromMATLAB` install script');
 
 end
 
@@ -90,6 +70,34 @@ function init_server(opts)
     });
 
     try_run(opts, init_script, 'server', 'Running `JuliaFromMATLAB.start` script from Julia server');
+
+end
+
+function start_server(opts)
+
+    mlock % Prevent MATLAB from clearing persistent variables via e.g. `clear all`
+    persistent cleanup_server % Julia server cleanup object
+
+    if opts.restart
+        cleanup_server = []; % triggers server cleanup, if server has been started
+    end
+    is_server_off = isempty(cleanup_server);
+
+    if is_server_off
+        % Initialize Julia server
+        if opts.debug
+            fprintf('* Starting Julia server\n\n');
+        end
+        init_server(opts);
+
+        % Wait for server pong
+        while ~ping_server(opts)
+            pause(0.1);
+        end
+
+        % Kill server and collect garbage on MATLAB exit
+        cleanup_server = onCleanup(@() kill_server(opts));
+    end
 
 end
 
@@ -126,26 +134,32 @@ function kill_server(opts)
 
 end
 
-function output = call_server(opts)
+function output = call_julia(opts)
 
-    % Script to run from the Julia server
+    % Save MATLAB inputs to .mat file in workspace folder
+    save(fullfile(opts.workspace, 'jl_input.mat'), '-struct', 'opts', '-v7.3');
+
+    % Script to run from Julia
     job_script = build_julia_script(opts, 'JuliaFromMATLAB', {
         sprintf('JuliaFromMATLAB.jlcall(@__MODULE__; workspace = "%s")', opts.workspace)
     });
 
-    % Script to call the Julia server
-    server_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        sprintf('JuliaFromMATLAB.DaemonMode.runfile("%s"; port = %d, output = %s)', job_script, opts.port, maybe_stdout(opts.debug))
-    });
+    if opts.server
+        % Script to call the Julia server
+        server_script = build_julia_script(opts, 'JuliaFromMATLAB', {
+            sprintf('JuliaFromMATLAB.DaemonMode.runfile("%s"; port = %d)', job_script, opts.port)
+        });
 
-    % Save inputs to disk
-    save(fullfile(opts.workspace, 'jl_input.mat'), '-struct', 'opts', '-v7.3');
-
-    % Call out to Julia server
-    try_run(opts, server_script, 'client', 'Sending `DaemonMode.runfile` script to Julia server');
+        % Call out to Julia server
+        try_run(opts, server_script, 'client', 'Sending `DaemonMode.runfile` script to Julia server');
+    else
+        % Call out to local Julia process
+        try_run(opts, job_script, 'local', 'Calling `JuliaFromMATLAB.jlcall` from local Julia process');
+    end
 
     % Load outputs from disk
     output_file = fullfile(opts.workspace, 'jl_output.mat');
+
     if exist(output_file, 'file')
         output = load(output_file);
         output = output.output;
@@ -203,6 +217,9 @@ function try_run(opts, script, mode, msg)
         case 'client'
             flags = '--startup-file=no --optimize=0 --compile=min';
             detach = '';
+        case 'local'
+            flags = '--startup-file=no --optimize=3';
+            detach = '';
         otherwise
             error('Unknown mode: ''%s''', mode)
     end
@@ -217,11 +234,26 @@ function try_run(opts, script, mode, msg)
 
 end
 
-function collect_garbage(opts)
+function julia = try_find_julia()
 
-    % Recursively delete workspace folder and contents
-    delete(fullfile(opts.workspace, 'tmp', '*'));
-    delete(fullfile(opts.workspace, '*.mat'));
+    % Default value
+    julia = 'julia';
+
+    try
+        if isunix
+            [st, res] = system('which julia');
+        elseif ispc
+            [st, res] = system('where julia');
+        else
+            % Default to 'julia'
+            return
+        end
+        if st == 0
+            julia = strtrim(res);
+        end
+    catch me
+        % Ignore error; default to 'julia'
+    end
 
 end
 
@@ -243,6 +275,21 @@ function tmp = workspace_tempname(opts)
 
 end
 
+function collect_garbage(opts)
+
+    % Recursively delete workspace folder and contents
+    delete(fullfile(opts.workspace, 'tmp', '*'));
+    delete(fullfile(opts.workspace, '*.mat'));
+
+end
+
+function path = relative_path(varargin)
+
+    jlcall_dir = fileparts(mfilename('fullpath'));
+    path = fullfile(jlcall_dir, varargin{:});
+
+end
+
 function str = bool_string(bool)
 
     if bool
@@ -260,12 +307,5 @@ function str = maybe_stdout(bool)
     else
         str = 'devnull';
     end
-
-end
-
-function path = relative_path(varargin)
-
-    jlcall_dir = fileparts(mfilename('fullpath'));
-    path = fullfile(jlcall_dir, varargin{:});
 
 end

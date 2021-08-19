@@ -8,18 +8,6 @@ mxdict(args...) = Dict{String, Any}(args...)
 mxtuple(args...) = Any[args...]
 mxempty() = zeros(Float64, 0, 0)
 
-function redirect_to_files(f)
-    open(tempname() * ".log", "w") do out
-        open(tempname() * ".err", "w") do err
-            redirect_stdout(out) do
-                redirect_stderr(err) do
-                    f()
-                end
-            end
-        end
-    end
-end
-
 #### Temporary workspace
 
 const TEMP_WORKSPACE = mktempdir(; prefix = ".jlcall_", cleanup = true)
@@ -27,11 +15,9 @@ const TEMP_WORKSPACE = mktempdir(; prefix = ".jlcall_", cleanup = true)
 function initialize_workspace()
     if !isfile(joinpath(TEMP_WORKSPACE, "Project.toml"))
         curr = Base.active_project()
-        redirect_to_files() do
-            Pkg.activate(TEMP_WORKSPACE)
-            Pkg.develop(PackageSpec(path = realpath(joinpath(@__DIR__, ".."))))
-            Pkg.activate(curr)
-        end
+        Pkg.activate(TEMP_WORKSPACE)
+        Pkg.develop(PackageSpec(path = realpath(joinpath(@__DIR__, ".."))); io = devnull)
+        Pkg.activate(curr)
     end
     return TEMP_WORKSPACE
 end

@@ -19,7 +19,7 @@ function mx_wrap_jlcall(
         workspace = initialize_workspace(),
         debug     = false,
         gc        = true,
-        port      = 1234,
+        port      = 5678,
         kwargs...,
     )
 

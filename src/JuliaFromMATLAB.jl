@@ -43,8 +43,9 @@ Base.@kwdef struct JLCallOptions
     setup::String             = ""
     modules::Vector{Any}      = Any[]
     workspace::String         = mktempdir(; prefix = ".jlcall_", cleanup = true)
-    shared::Bool              = true
+    server::Bool              = true
     port::Int                 = 3000
+    shared::Bool              = true
     restart::Bool             = false
     gc::Bool                  = true
     debug::Bool               = false

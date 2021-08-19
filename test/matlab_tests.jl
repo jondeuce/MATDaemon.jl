@@ -63,7 +63,7 @@ using MATLAB: MEngineError
     end
 end
 
-@testset "local environment" begin
+@testset "local project" begin
     @test is_eq(mx_wrap_jlcall(1, "TestProject.inner", ([1.0 2.0; 3.0 4.0; 5.0 6.0],); project = "TestProject", modules = ["TestProject"], restart = true), [35.0 44.0; 44.0 56.0])
 end
 
@@ -72,8 +72,8 @@ end
     @test is_eq(mx_wrap_jlcall(1, "() -> Base.Threads.nthreads()"; threads = 4), 3) # Setting threads shouldn't change active session
 end
 
-@testset "persistent shared environment" begin
-    # Initialize shared environment
+@testset "shared server environments" begin
+    # Initialize shared server environment
     @test is_eqq(mx_wrap_jlcall(0; setup = "setup.jl", shared = true, restart = true), nothing)
 
     # Call custom library code in persistent stateful environment
@@ -84,8 +84,8 @@ end
     @test is_eq(mx_wrap_jlcall(1, "x -> Statistics.mean(Setup.mul2(x))", ([1.0, 2.0, 3.0],); shared = true), 4.0)
 end
 
-@testset "unique environments" begin
-    # Initialize unique environments
+@testset "unique server environments" begin
+    # Initialize unique server environments
     @test is_eqq(mx_wrap_jlcall(0; shared = false, restart = true), nothing)
 
     # Run custom code in each environment, requiring re-initialization each time
@@ -95,6 +95,12 @@ end
     @test is_eq(mx_wrap_jlcall(1, "LinearAlgebra.norm", ([3.0, 4.0],); modules = ["LinearAlgebra", "Statistics"], shared = false), 5.0)
     @test_throws MEngineError mx_wrap_jlcall(1, "LinearAlgebra.det", ([1.0 2.0; 3.0 4.0],); shared = false)
     @test_throws MEngineError mx_wrap_jlcall(1, "x -> Statistics.mean(Setup.mul2(x))", ([1.0, 2.0, 3.0],); shared = false)
+end
+
+@testset "server-free" begin
+    # Run unique local Julia process for each `jlcall`
+    @test is_eq(mx_wrap_jlcall(1, "LinearAlgebra.norm", ([3.0, 4.0],); modules = ["LinearAlgebra"], server = false), 5.0)
+    @test_throws MEngineError mx_wrap_jlcall(1, "LinearAlgebra.norm", ([3.0, 4.0],); server = false)
 end
 
 @testset "port number" begin
