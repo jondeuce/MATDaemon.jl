@@ -26,7 +26,6 @@ function opts = parse_inputs(varargin)
     addParameter(p, 'restart', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'gc', true, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'debug', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
-    addParameter(p, 'verbose', true, @(x) validateattributes(x, {'logical'}, {'scalar'}));
 
     parse(p, varargin{:});
     opts = p.Results;
@@ -87,7 +86,7 @@ function init_server(opts)
 
     % If shared is false, each Julia server call is executed in it's own Module to avoid namespace collisions, etc.
     init_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        sprintf('JuliaFromMATLAB.start(%d; shared = %s, verbose = %s)', opts.port, bool_string(opts.shared), bool_string(opts.verbose || opts.debug))
+        sprintf('JuliaFromMATLAB.start(%d; shared = %s, verbose = %s)', opts.port, bool_string(opts.shared), bool_string(opts.debug))
     });
 
     try_run(opts, init_script, 'server', 'Running `JuliaFromMATLAB.start` script from Julia server');
@@ -116,7 +115,7 @@ function kill_server(opts)
     end
 
     kill_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        sprintf('JuliaFromMATLAB.kill(%d; verbose = %s)', opts.port, bool_string(opts.verbose || opts.debug))
+        sprintf('JuliaFromMATLAB.kill(%d; verbose = %s)', opts.port, bool_string(opts.debug))
     });
 
     try_run(opts, kill_script, 'client', 'Sending kill script to Julia server');
@@ -136,7 +135,7 @@ function output = call_server(opts)
 
     % Script to call the Julia server
     server_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        sprintf('JuliaFromMATLAB.DaemonMode.runfile("%s"; port = %d, output = %s)', job_script, opts.port, maybe_stdout(opts.verbose || opts.debug))
+        sprintf('JuliaFromMATLAB.DaemonMode.runfile("%s"; port = %d, output = %s)', job_script, opts.port, maybe_stdout(opts.debug))
     });
 
     % Save inputs to disk

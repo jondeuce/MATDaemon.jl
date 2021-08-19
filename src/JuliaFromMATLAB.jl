@@ -48,8 +48,8 @@ Base.@kwdef struct JLCallOptions
     restart::Bool             = false
     gc::Bool                  = true
     debug::Bool               = false
-    verbose::Bool             = false
 end
+Base.:(==)(o1::JLCallOptions, o2::JLCallOptions) = all(getproperty(o1, k) == getproperty(o2, k) for k in fieldnames(JLCallOptions))
 
 function JLCallOptions(mxfile::String; kwargs...)
     maybevec(x) = x isa AbstractArray ? vec(x) : x
@@ -57,12 +57,12 @@ function JLCallOptions(mxfile::String; kwargs...)
     JLCallOptions(; opts..., kwargs...)
 end
 
-function matlabify(o::JLCallOptions)
-    args = Any[o.f, o.args, o.kwargs]
-    for k in fieldnames(typeof(o))
+function matlabify(opts::JLCallOptions)
+    args = Any[opts.f, opts.args, opts.kwargs]
+    for k in fieldnames(typeof(opts))
         k ∈ (:f, :args, :kwargs) && continue
         push!(args, string(k))
-        push!(args, getproperty(o, k))
+        push!(args, getproperty(opts, k))
     end
     return args
 end
@@ -84,7 +84,10 @@ function kill(port::Int; verbose::Bool = false)
         DaemonMode.sendExitCode(port)
         verbose && println("* Julia server killed\n")
     catch e
-        if (e isa Base.IOError) && abs(e.code) == abs(Libc.ECONNREFUSED)
+        if (e isa Base.IOError)
+            #TODO: Check for proper error code:
+            #   on linux: abs(e.code) == abs(Libc.ECONNREFUSED)
+            #   on windows: ?
             verbose && println("* Julia server inactive; nothing to kill\n")
         else
             rethrow()
@@ -170,15 +173,13 @@ function jlcall(mod::Module; workspace::String)
     jlcall(mod, opts)
 end
 
-let
-    # Generate tempnames with numbered prefix for easier debugging
-    local i = Ref(0)
+# Generate tempnames with numbered prefix for easier debugging
+const jlcall_tempname_count = Ref(0)
 
-    function jlcall_tempname(parent::String)
-        tmp = lpad(i[], 4, '0') * "_" * basename(tempname())
-        i[] = mod(i[] + 1, 10_000)
-        return joinpath(parent, tmp)
-    end
+function jlcall_tempname(parent::String)
+    tmp = lpad(jlcall_tempname_count[], 4, '0') * "_" * basename(tempname())
+    jlcall_tempname_count[] = mod(jlcall_tempname_count[] + 1, 10_000)
+    return joinpath(parent, tmp)
 end
 
 end # module JuliaFromMATLAB

@@ -1,4 +1,19 @@
+using Pkg
 using GarishPrint: pprint
+
+#### Temporary workspace
+
+const TEMP_WORKSPACE = mktempdir(; prefix = ".jlcall_", cleanup = true)
+
+function initialize_workspace()
+    if !isfile(joinpath(TEMP_WORKSPACE, "Project.toml"))
+        curr = Base.active_project()
+        Pkg.activate(TEMP_WORKSPACE; io = devnull)
+        Pkg.develop(; path = realpath(joinpath(@__DIR__, "..")), io = devnull)
+        Pkg.activate(curr; io = devnull)
+    end
+    return TEMP_WORKSPACE
+end
 
 #### Recursive, typed equality testing
 

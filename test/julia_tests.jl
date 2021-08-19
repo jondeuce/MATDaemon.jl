@@ -2,7 +2,8 @@ using Test
 using Base.Iterators: Pairs
 using Distributed
 using JuliaFromMATLAB
-using JuliaFromMATLAB: DaemonMode, JLCallOptions, matlabify
+using JuliaFromMATLAB: DaemonMode, JLCallOptions, jlcall, matlabify
+using MAT
 
 struct A
     x
@@ -99,4 +100,45 @@ end
 
     # Killing a nonexistent server should be a no-op
     @test JuliaFromMATLAB.kill(port; verbose = true) === nothing
+end
+
+@testset "jlcall" begin
+    function wrap_call(f, args, kwargs, output)
+        opts = JLCallOptions(;
+            f         = f,
+            args      = args,
+            kwargs    = kwargs,
+            workspace = initialize_workspace(),
+            debug     = true,
+        )
+        input_file = joinpath(opts.workspace, JuliaFromMATLAB.JL_INPUT)
+        output_file = joinpath(opts.workspace, JuliaFromMATLAB.JL_OUTPUT)
+
+        MAT.matwrite(input_file, mxdict(string(k) => matlabify(getproperty(opts, k)) for k in fieldnames(typeof(opts))))
+        @test isfile(input_file)
+        @test opts == JLCallOptions(input_file)
+
+        jlcall(Main; workspace = opts.workspace)
+
+        @test isfile(output_file)
+        @test output == MAT.matread(output_file)["output"]
+
+        rm(input_file; force = true)
+        rm(output_file; force = true)
+    end
+
+    for (i, (f, args, kwargs, output)) in enumerate([
+        ("f1(x) = 2x",      mxtuple(3),         mxdict(),           mxtuple(6)),
+        ("f2(x; y) = x*y",  mxtuple(5.0),       mxdict("y" => 3),   mxtuple(15.0)),
+        ("f3() = nothing",  mxtuple(),          mxdict(),           mxtuple()),
+        ("f4() = missing",  mxtuple(),          mxdict(),           mxtuple(mxempty())),
+        ("f5(x,y) = (x,y)", mxtuple("one", 2),  mxdict(),           mxtuple("one", 2)),
+        ("f6(x,y) = x*y",   mxtuple(3.0, 2),    mxdict(),           mxtuple(6.0)),
+        ("f7(x,y) = [x*y]", mxtuple(3.0, 2),    mxdict(),           mxtuple(6.0)),
+        ("f8(x,y) = [x,y]", mxtuple(3.0, 2.0),  mxdict(),           mxtuple([3.0, 2.0])),
+    ])
+        wrap_call(f, args, kwargs, output)
+        @test isdefined(Main, Symbol(:f, i))
+    end
+
 end

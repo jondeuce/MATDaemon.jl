@@ -33,12 +33,8 @@ The server will be automatically killed when MATLAB exits.
 
 In the event that the Julia server reaches an undesired state, the server can be restarted by passing the `'restart'` flag with value `true`:
 
-
 ```matlab
 >> jlcall('x -> sum(abs2, x)', {1:5}, 'restart', true)
-* Killing Julia server
-* Julia server killed
-* Starting Julia server
 
 ans =
 
@@ -67,7 +63,6 @@ In order for the `'threads'` flag to take effect, the server must be restarted.
 ### Loading modules
 
 Julia modules can be loaded and used:
-
 
 ```matlab
 >> jlcall('LinearAlgebra.norm', {[3.0; 4.0]}, 'modules', {'LinearAlgebra'})

@@ -4,9 +4,7 @@ using MATLAB: mxcall
 
 #### Wrapper for calling jlcall.m via MATLAB.jl
 
-const TEMP_WORKSPACE = mktempdir(; prefix = ".jlcall_", cleanup = true)
-
-function jlcall(
+function mx_jl_call(
         nargout::Int,
         f::String = "(args...; kwargs...) -> nothing",
         f_args::Tuple = (),
@@ -14,20 +12,12 @@ function jlcall(
         kwargs...,
     )
 
-    if !isfile(joinpath(TEMP_WORKSPACE, "Project.toml"))
-        curr = Base.active_project()
-        Pkg.activate(TEMP_WORKSPACE; io = devnull)
-        Pkg.develop(; path = realpath(joinpath(@__DIR__, "..")), io = devnull)
-        Pkg.activate(curr; io = devnull)
-    end
-
     f_opts = JLCallOptions(;
         f         = f,
         args      = matlabify(f_args),
         kwargs    = matlabify(f_kwargs),
-        workspace = TEMP_WORKSPACE,
+        workspace = initialize_workspace(),
         debug     = false,
-        verbose   = false,
         gc        = true,
         port      = 1234,
         kwargs...,
