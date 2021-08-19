@@ -4,7 +4,7 @@ using MATLAB: mxcall
 
 #### Wrapper for calling jlcall.m via MATLAB.jl
 
-function mx_jl_call(
+function mx_wrap_jlcall(
         nargout::Int,
         f::String = "(args...; kwargs...) -> nothing",
         f_args::Tuple = (),

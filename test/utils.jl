@@ -1,5 +1,6 @@
 using Pkg
 using GarishPrint: pprint
+using JuliaFromMATLAB: JLCallOptions
 
 #### Misc. utils
 
@@ -41,6 +42,7 @@ recurse_is_equal(eq) = (x, y) -> recurse_is_equal(eq, x, y)
 recurse_is_equal(eq, x, y) = eq(x, y) #default
 recurse_is_equal(eq, x::AbstractDict, y::AbstractDict) = eq(x, y) && all(recurse_is_equal(eq, x[k], y[k]) for k in keys(x))
 recurse_is_equal(eq, x::NamedTuple, y::NamedTuple) = eq(x, y) && all(recurse_is_equal(eq, x[k], y[k]) for k in keys(x))
+recurse_is_equal(eq, x::JLCallOptions, y::JLCallOptions) = all(recurse_is_equal(eq, getproperty(x, k), getproperty(y, k)) for k in fieldnames(JLCallOptions))
 
 typed_is_equal(eq) = (x, y) -> typed_is_equal(eq, x, y)
 typed_is_equal(eq, x, y) = eq(x, y) && typeof(x) == typeof(y)

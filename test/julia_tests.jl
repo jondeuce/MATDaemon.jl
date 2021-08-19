@@ -9,18 +9,15 @@ struct A
     x
     y
 end
-Base.:(==)(a1::A, a2::A) = a1.x == a2.x && a1.y == a2.y
+recurse_is_equal(eq, x::A, y::A) = recurse_is_equal(eq, x.x, y.x) && recurse_is_equal(eq, x.y, y.y)
 
 struct B
     x
     y
 end
-Base.:(==)(b1::B, b2::B) = b1.x == b2.x && b1.y == b2.y
+recurse_is_equal(eq, x::B, y::B) = recurse_is_equal(eq, x.x, y.x) && recurse_is_equal(eq, x.y, y.y)
 
-JuliaFromMATLAB.matlabify(b::B) = mxdict(
-    "x" => matlabify(b.x),
-    "y" => matlabify(b.y),
-)
+JuliaFromMATLAB.matlabify(b::B) = mxdict("x" => matlabify(b.x), "y" => matlabify(b.y))
 
 @testset "matlabify" begin
     for (jl, mx) in [
@@ -72,9 +69,8 @@ JuliaFromMATLAB.matlabify(b::B) = mxdict(
 end
 
 @testset "start/kill server" begin
-    local port = rand(9000:9999)
-
     # Add two Julia workers; one for running a Julia server, and one for sending the kill signal
+    port = 9876
     addprocs(2)
     @everywhere begin
         using Pkg
@@ -106,41 +102,43 @@ end
 end
 
 @testset "jlcall" begin
-    function wrap_call(f, args, kws, output)
+    function wrap_jlcall(f, f_args, f_kwargs, f_output; kwargs...)
         opts = JLCallOptions(;
             f         = f,
-            args      = args,
-            kwargs    = kws,
+            args      = f_args,
+            kwargs    = f_kwargs,
             workspace = initialize_workspace(),
             debug     = true,
+            kwargs...,
         )
         input_file = joinpath(opts.workspace, JuliaFromMATLAB.JL_INPUT)
         output_file = joinpath(opts.workspace, JuliaFromMATLAB.JL_OUTPUT)
 
         MAT.matwrite(input_file, matlabify(opts))
         @test isfile(input_file)
-        @test opts == JLCallOptions(input_file)
+        @test is_eq(opts, JLCallOptions(input_file))
 
         jlcall(Main; workspace = opts.workspace)
 
         @test isfile(output_file)
-        @test output == MAT.matread(output_file)["output"]
+        @test is_eq(f_output, MAT.matread(output_file)["output"])
 
         rm(input_file; force = true)
         rm(output_file; force = true)
     end
 
-    for (i, (f, args, kwargs, output)) in enumerate([
-        ("f1(x) = 2x",      mxtuple(3),         mxdict(),           mxtuple(6)),
-        ("f2(x; y) = x*y",  mxtuple(5.0),       mxdict("y" => 3),   mxtuple(15.0)),
-        ("f3() = nothing",  mxtuple(),          mxdict(),           mxtuple()),
-        ("f4() = missing",  mxtuple(),          mxdict(),           mxtuple(mxempty())),
-        ("f5(x,y) = (x,y)", mxtuple("one", 2),  mxdict(),           mxtuple("one", 2)),
-        ("f6(x,y) = x*y",   mxtuple(3.0, 2),    mxdict(),           mxtuple(6.0)),
-        ("f7(x,y) = [x*y]", mxtuple(3.0, 2),    mxdict(),           mxtuple(6.0)),
-        ("f8(x,y) = [x,y]", mxtuple(3.0, 2.0),  mxdict(),           mxtuple([3.0, 2.0])),
+    for (i, (f, f_args, f_kwargs, f_output, kwargs)) in enumerate([
+        ("f1(x) = 2x",              mxtuple(3),         mxdict(),           mxtuple(6),          NamedTuple()),
+        ("f2(x; y) = x*y",          mxtuple(5.0),       mxdict("y" => 3),   mxtuple(15.0),       NamedTuple()),
+        ("f3() = nothing",          mxtuple(),          mxdict(),           mxtuple(),           NamedTuple()),
+        ("f4() = missing",          mxtuple(),          mxdict(),           mxtuple(mxempty()),  NamedTuple()),
+        ("f5(x,y) = (x,y)",         mxtuple("one", 2),  mxdict(),           mxtuple("one", 2),   NamedTuple()),
+        ("f6(x,y) = x*y",           mxtuple(3.0, 2),    mxdict(),           mxtuple(6.0),        NamedTuple()),
+        ("f7(x,y) = [x*y]",         mxtuple(3.0, 2),    mxdict(),           mxtuple(6.0),        NamedTuple()),
+        ("f8(x,y) = [x,y]",         mxtuple(3.0, 2.0),  mxdict(),           mxtuple([3.0, 2.0]), NamedTuple()),
+        ("f9(x) = Setup.mul2(x)",   mxtuple([2f0 3f0]), mxdict(),           mxtuple([4f0 6f0]),  (setup = "setup.jl", project = "TestProject")),
     ])
-        wrap_call(f, args, kwargs, output)
+        wrap_jlcall(f, f_args, f_kwargs, f_output; kwargs...)
         @test isdefined(Main, Symbol(:f, i))
     end
 

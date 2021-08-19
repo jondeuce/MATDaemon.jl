@@ -49,7 +49,6 @@ Base.@kwdef struct JLCallOptions
     gc::Bool                  = true
     debug::Bool               = false
 end
-Base.:(==)(o1::JLCallOptions, o2::JLCallOptions) = matlabify(o1) == matlabify(o2)
 
 function JLCallOptions(mxfile::String; kwargs...)
     maybevec(x) = x isa AbstractArray ? vec(x) : x
