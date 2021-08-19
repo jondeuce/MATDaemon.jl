@@ -23,7 +23,7 @@ ans =
 The positional arguments passed to `jlcall.m` are:
 1. The Julia function to call. This can be any Julia expression which evaluates to a function. For example, `'let a=2, b=3; x -> a*x+b; end'`. **Note:** this expression is evaluated in the global scope
 2. Positional input arguments, given as a MATLAB `cell` array. For example, `args = {arg1, arg2, ...}`
-3. Keyword input arguments, given as a MATLAB `struct`. For example, `kwargs = struct('name1', value1, 'name2', value2, ...)`
+3. Keyword input arguments, given as a MATLAB `struct`. For example, `kwargs = struct('key1', value1, 'key2', value2, ...)`
 
 The first time `jlcall.m` is invoked, a Julia server is started as a background process.
 All calls to Julia are run on this server.

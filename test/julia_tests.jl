@@ -127,6 +127,15 @@ end
         rm(output_file; force = true)
     end
 
+    # This should fail, as Base.VERSION has type VersionNumber and therefore cannot be written to .mat
+    @test_throws ErrorException wrap_jlcall("f0() = Base.VERSION", mxtuple(), mxdict(), mxtuple(string(Base.VERSION)))
+    @test isdefined(Main, :f0)
+
+    # Fix `f0` by extending `matlabify` to `VersionNumber`s
+    JuliaFromMATLAB.matlabify(v::Base.VersionNumber) = string(v)
+    wrap_jlcall("f0", mxtuple(), mxdict(), mxtuple(string(Base.VERSION)))
+
+    # Test various combinations of expected jlcall inputs and outputs
     for (i, (f, f_args, f_kwargs, f_output, kwargs)) in enumerate([
         ("f1(x) = 2x",              mxtuple(3),         mxdict(),           mxtuple(6),          NamedTuple()),
         ("f2(x; y) = x*y",          mxtuple(5.0),       mxdict("y" => 3),   mxtuple(15.0),       NamedTuple()),
