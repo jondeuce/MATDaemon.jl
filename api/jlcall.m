@@ -29,6 +29,7 @@ function opts = parse_inputs(varargin)
     addParameter(p, 'threads', maxNumCompThreads, @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
     addParameter(p, 'setup', '', @ischar);
     addParameter(p, 'modules', {}, @iscell);
+    addParameter(p, 'cwd', pwd, @ischar);
     addParameter(p, 'workspace', relative_path('.jlcall'), @ischar);
     addParameter(p, 'server', true, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'port', 3000, @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
@@ -55,7 +56,7 @@ function init_workspace(opts)
     % Install JuliaFromMATLAB into workspace
     install_script = build_julia_script(opts, 'Pkg', {
         'println("* Installing JuliaFromMATLAB...\n")'
-        sprintf('Pkg.add(Pkg.PackageSpec(url = "https://github.com/jondeuce/JuliaFromMATLAB.jl", rev = "master"); io = %s)', maybe_stdout(opts.debug))
+        sprintf('Pkg.add(Pkg.PackageSpec(url = "https://github.com/jondeuce/JuliaFromMATLAB.jl", rev = "master"); io = %s)', jl_maybe_stdout(opts.debug))
     });
 
     try_run(opts, install_script, 'client', 'Running `JuliaFromMATLAB` install script');
@@ -66,7 +67,7 @@ function init_server(opts)
 
     % If shared is false, each Julia server call is executed in it's own Module to avoid namespace collisions, etc.
     init_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        sprintf('JuliaFromMATLAB.start(%d; shared = %s, verbose = %s)', opts.port, bool_string(opts.shared), bool_string(opts.debug))
+        sprintf('JuliaFromMATLAB.start(%d; shared = %s, verbose = %s)', opts.port, jl_bool(opts.shared), jl_bool(opts.debug))
     });
 
     try_run(opts, init_script, 'server', 'Running `JuliaFromMATLAB.start` script from Julia server');
@@ -123,7 +124,7 @@ function kill_server(opts)
     end
 
     kill_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        sprintf('JuliaFromMATLAB.kill(%d; verbose = %s)', opts.port, bool_string(opts.debug))
+        sprintf('JuliaFromMATLAB.kill(%d; verbose = %s)', opts.port, jl_bool(opts.debug))
     });
 
     try_run(opts, kill_script, 'client', 'Sending kill script to Julia server');
@@ -141,13 +142,13 @@ function output = call_julia(opts)
 
     % Script to run from Julia
     job_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        sprintf('JuliaFromMATLAB.jlcall(@__MODULE__; workspace = "%s")', opts.workspace)
+        sprintf('include(JuliaFromMATLAB.build_jlcall_script(%s))', jl_opts_without_args_kwargs(opts))
     });
 
     if opts.server
         % Script to call the Julia server
         server_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-            sprintf('JuliaFromMATLAB.DaemonMode.runfile("%s"; port = %d)', job_script, opts.port)
+            sprintf('JuliaFromMATLAB.DaemonMode.runfile(raw"%s"; port = %d)', job_script, opts.port)
         });
 
         % Call out to Julia server
@@ -257,6 +258,30 @@ function julia = try_find_julia()
 
 end
 
+function jl_opts = jl_opts_without_args_kwargs(opts)
+
+    % This is a bit of a hack, but it is a nice way to easily pass the user settings to Julia without
+    % incurring the full cost of loading the args and/or kwargs, which may have large memory footprints
+    jl_opts = {
+        sprintf('f         = raw"%s",', opts.f)
+        sprintf('julia     = raw"%s",', opts.julia)
+        sprintf('project   = raw"%s",', opts.project)
+        sprintf('threads   = %d,',      opts.threads)
+        sprintf('setup     = raw"%s",', opts.setup)
+        sprintf('modules   = %s,',      jl_vector_of_strings(opts.modules))
+        sprintf('cwd       = raw"%s",', opts.cwd)
+        sprintf('workspace = raw"%s",', opts.workspace)
+        sprintf('server    = %s,',      jl_bool(opts.server))
+        sprintf('port      = %d,',      opts.port)
+        sprintf('shared    = %s,',      jl_bool(opts.shared))
+        sprintf('restart   = %s,',      jl_bool(opts.restart))
+        sprintf('gc        = %s,',      jl_bool(opts.gc))
+        sprintf('debug     = %s,',      jl_bool(opts.debug))
+    };
+    jl_opts = ['JuliaFromMATLAB.JLCallOptions(;', sprintf('\n    %s', jl_opts{:}), sprintf('\n)')];
+
+end
+
 function tmp = workspace_tempname(opts)
 
     tmp_dir = fullfile(opts.workspace, 'tmp');
@@ -290,7 +315,7 @@ function path = relative_path(varargin)
 
 end
 
-function str = bool_string(bool)
+function str = jl_bool(bool)
 
     if bool
         str = 'true';
@@ -300,12 +325,22 @@ function str = bool_string(bool)
 
 end
 
-function str = maybe_stdout(bool)
+function str = jl_maybe_stdout(bool)
 
     if bool
         str = 'stdout';
     else
         str = 'devnull';
+    end
+
+end
+
+function str = jl_vector_of_strings(cell_strs)
+
+    if isempty(cell_strs)
+        str = 'Any[]';
+    else
+        str = ['Any[', sprintf('raw"%s",', cell_strs{:}), ']'];
     end
 
 end

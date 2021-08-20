@@ -37,11 +37,12 @@ Base.@kwdef struct JLCallOptions
     f::String                 = "(args...; kwargs...) -> nothing"
     args::Vector{Any}         = Any[]
     kwargs::Dict{String, Any} = Dict{String, Any}()
-    julia::String             = joinpath(Base.Sys.BINDIR, "julia")
+    julia::String             = abspath(Base.Sys.BINDIR, "julia")
     project::String           = ""
     threads::Int              = Base.Threads.nthreads()
     setup::String             = ""
     modules::Vector{Any}      = Any[]
+    cwd::String               = pwd()
     workspace::String         = mktempdir(; prefix = ".jlcall_", cleanup = true)
     server::Bool              = true
     port::Int                 = 3000
@@ -91,61 +92,115 @@ function kill(port::Int; verbose::Bool = false)
 end
 
 """
-Run Julia expression in module `mod` using jlcall.m input parser results `opts`.
+Print prettified expression to `io`.
 """
-function jlcall(mod::Module, opts::JLCallOptions)
-    # Push user project onto top of load path
-    if !isempty(opts.project) && realpath(opts.project) ∉ LOAD_PATH
-        pushfirst!(LOAD_PATH, realpath(opts.project))
-    end
+prettyln(io, ex) = println(io, string(MacroTools.prettify(ex)))
 
-    # Push workspace into back of load path
-    if opts.workspace ∉ LOAD_PATH
-        push!(LOAD_PATH, opts.workspace)
-    end
+"""
+Build script for calling jlcall
+"""
+function build_jlcall_script(opts::JLCallOptions)
 
-    # Build function expression to evaluate
-    ex = quote
-        $(
-            if !isempty(opts.setup)
-                [:(include($(opts.setup)))]
-            else
-                []
-            end...
-        )
-        $(
-            map(opts.modules) do mod_name
-                # Load module; will fail if not installed
-                :(import $(Meta.parse(mod_name)))
-            end...
-        )
-        $(Meta.parse(opts.f))
-    end
+    # Build temporary julia script
+    jlcall_script = jlcall_tempname(mkpath(abspath(opts.workspace, "tmp"))) * ".jl"
 
-    if opts.debug
-        # Print current environment
-        str_expr = string(MacroTools.prettify(ex))
-        println("* Environment for evaluating Julia expression:")
-        println("*   Module: $(mod)")
-        println("*   Load path: $(LOAD_PATH)")
-        println("*   Function expression:", replace("\n" * chomp(str_expr), "\n" => "\n*     "), "\n")
+    open(jlcall_script; write = true) do io
 
-        # Save evaluated expression to temp file
-        open(jlcall_tempname(mkpath(joinpath(opts.workspace, "tmp"))) * ".jl"; write = true) do io
-            println(io, str_expr)
+        # Change to current matlab working directory
+        prettyln(io, quote
+            cd($(abspath(opts.cwd)))
+        end)
+
+        # Push user project onto top of load path
+        if !isempty(opts.project)
+            prettyln(io, quote
+                if $(abspath(opts.project)) ∉ LOAD_PATH
+                    pushfirst!(LOAD_PATH, $(abspath(opts.project)))
+                end
+            end)
         end
+
+        # Push workspace into back of load path
+        prettyln(io, quote
+            if $(abspath(opts.workspace)) ∉ LOAD_PATH
+                push!(LOAD_PATH, $(abspath(opts.workspace)))
+            end
+        end)
+
+        # Print environment for debugging
+        if opts.debug
+            prettyln(io, quote
+                println("* Environment for evaluating Julia expression:")
+                println("*   Directory: $(pwd())")
+                println("*   Module: $(@__MODULE__)")
+                println("*   Load path: $(LOAD_PATH)\n")
+            end)
+        end
+
+        # JuliaFromMATLAB is always imported
+        prettyln(io, quote
+            import JuliaFromMATLAB
+        end)
+
+        # Include setup code
+        if !isempty(opts.setup)
+            prettyln(io, quote
+                include($(abspath(opts.setup)))
+            end)
+        end
+
+        # Load modules; will fail if not installed
+        for mod in opts.modules
+            prettyln(io, quote
+                import $(Meta.parse(mod))
+            end)
+        end
+
+        # Call jlcall
+        prettyln(io, quote
+            JuliaFromMATLAB.jlcall(
+                let
+                    # See: https://discourse.julialang.org/t/how-to-include-into-local-scope/34634/11?u=jondeuce
+                    $(Meta.parse("quote; $(opts.f); end").args[1])
+                end;
+                workspace = $(abspath(opts.workspace))
+            )
+        end)
+
     end
 
+    # Print generated file
+    if opts.debug
+        println("* Generated Julia script:")
+        println("*   $(jlcall_script)\n")
+        println(readchomp(jlcall_script) * "\n")
+    end
+
+    return jlcall_script
+end
+
+"""
+Run Julia function `f`, loading jlcall.m input parser results from `workspace`
+"""
+function jlcall(f; workspace::String)
+    # Load input parser results from workspace
+    opts = JLCallOptions(abspath(workspace, JL_INPUT); workspace = abspath(workspace))
+    jlcall(f, opts)
+end
+
+"""
+Run Julia function `f` using jlcall.m input parser results `opts`.
+"""
+function jlcall(f, opts::JLCallOptions)
     # Evaluate expression and call returned function
-    f = @eval mod $ex
-    output = Base.invokelatest(f, opts.args...; juliafy_kwargs(opts.kwargs)...)
+    output = f(opts.args...; juliafy_kwargs(opts.kwargs)...)
     output =
         output isa Nothing ? Any[] :
-        output isa Tuple   ? Any[Base.invokelatest.(matlabify, output)...] :
-        Any[Base.invokelatest(matlabify, output)]
+        output isa Tuple   ? Any[map(matlabify, output)...] :
+        Any[matlabify(output)]
 
     # Save outputs
-    output_file = joinpath(opts.workspace, JL_OUTPUT)
+    output_file = abspath(opts.workspace, JL_OUTPUT)
     try
         MAT.matwrite(output_file, Dict{String, Any}("output" => output))
     catch e
@@ -157,23 +212,13 @@ function jlcall(mod::Module, opts::JLCallOptions)
     return nothing
 end
 
-"""
-Run Julia expression in module `mod`, loading jlcall.m input parser results from `workspace`.
-"""
-function jlcall(mod::Module; workspace::String)
-    # Load input parser results from workspace
-    workspace = realpath(workspace)
-    opts = JLCallOptions(joinpath(workspace, JL_INPUT); workspace = workspace)
-    jlcall(mod, opts)
-end
-
 # Generate tempnames with numbered prefix for easier debugging
 const jlcall_tempname_count = Ref(0)
 
 function jlcall_tempname(parent::String)
     tmp = lpad(jlcall_tempname_count[], 4, '0') * "_" * basename(tempname())
     jlcall_tempname_count[] = mod(jlcall_tempname_count[] + 1, 10_000)
-    return joinpath(parent, tmp)
+    return abspath(parent, tmp)
 end
 
 end # module JuliaFromMATLAB

@@ -21,7 +21,7 @@ ans =
 ```
 
 The positional arguments passed to `jlcall.m` are:
-1. The Julia function to call, given as a MATLAB `char` array. This can be any Julia expression which evaluates to a function. For example, `'let a=2, b=3; x -> a*x+b; end'`. **Note:** this expression is evaluated in the global scope
+1. The Julia function to call, given as a MATLAB `char` array. This can be any Julia expression which evaluates to a function. For example, `a=2; b=3; x -> a*x+b'`. **Note:** this expression is wrapped in a `let` block and evaluated in the global scope
 2. Positional input arguments, given as a MATLAB `cell` array. For example, `args = {arg1, arg2, ...}`
 3. Keyword input arguments, given as a MATLAB `struct`. For example, `kwargs = struct('key1', value1, 'key2', value2, ...)`
 
@@ -136,7 +136,7 @@ Julia functions may require or return types which cannot be directly passed from
 For example, suppose one would like to query `Base.VERSION`.
 Naively calling `jlcall('() -> Base.VERSION')` would fail, as `typeof(Base.VERSION)` is not a `String` but a `VersionNumber`.
 
-One possible remedy is to define a wrapper function:
+One possible remedy is to define a wrapper function in a Julia script:
 
 ```julia
 # setup.jl
@@ -160,13 +160,13 @@ In general, however, interfacing with complex Julia libraries using MATLAB types
 
 Output(s) from Julia are returned using the MATLAB `cell` array [`varargout`](https://www.mathworks.com/help/matlab/ref/varargout.html), MATLAB's variable-length list of output arguments.
 A helper function `JuliaFromMATLAB.matlabify` is used to convert Julia values into MATLAB-compatible values.
-In particular, the following rules are used to populate `varargout` with the Julia output `y`:
+Specifically, the following rules are used to populate `varargout` with the Julia output `y`:
 
 1. If `y::Nothing`, then `varargout = {}` and no outputs are returned to MATLAB
 2. If `y::Tuple`, then `length(y)` outputs are returned, with `varargout{i}` given by `matlabify(y[i])`
-3. Otherwise one output is returned, with `varargout{1}` given by `matlabify(y)`
+3. Otherwise, one output is returned with `varargout{1}` given by `matlabify(y)`
 
-Where the following `matlabify` methods are defined by default:
+The following `matlabify` methods are defined by default:
 
 ```julia
 matlabify(x) = x # default fallback
@@ -202,3 +202,4 @@ This repository contains utilities for parsing and running Julia code, MATLAB in
 
 The workhorse behind `JuliaFromMATLAB.jl` and `jlcall.m` is [`DaemonMode.jl`](https://github.com/dmolina/DaemonMode.jl) which is used to start a persistent Julia server in the background.
 MATLAB inputs and Julia ouputs are passed back and forth between MATLAB and the `DaemonMode.jl` server by writing to temporary `.mat` files.
+This naturally leads to some overhead when calling Julia, particularly when the MATLAB inputs and/or Julia outputs have large memory footprints.

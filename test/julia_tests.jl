@@ -118,7 +118,7 @@ end
         @test isfile(input_file)
         @test is_eq(opts, JLCallOptions(input_file))
 
-        jlcall(Main; workspace = opts.workspace)
+        Main.include(JuliaFromMATLAB.build_jlcall_script(opts))
 
         @test isfile(output_file)
         @test is_eq(f_output, MAT.matread(output_file)["output"])
@@ -128,24 +128,24 @@ end
     end
 
     # This should fail, as Base.VERSION has type VersionNumber and therefore cannot be written to .mat
-    @test_throws ErrorException wrap_jlcall("f0() = Base.VERSION", mxtuple(), mxdict(), mxtuple(string(Base.VERSION)))
+    @test_throws LoadError wrap_jlcall("@eval Main f0() = Base.VERSION", mxtuple(), mxdict(), mxtuple(string(Base.VERSION)))
     @test isdefined(Main, :f0)
 
     # Fix `f0` by extending `matlabify` to `VersionNumber`s
     JuliaFromMATLAB.matlabify(v::Base.VersionNumber) = string(v)
-    wrap_jlcall("f0", mxtuple(), mxdict(), mxtuple(string(Base.VERSION)))
+    wrap_jlcall("Main.f0", mxtuple(), mxdict(), mxtuple(string(Base.VERSION)))
 
     # Test various combinations of expected jlcall inputs and outputs
     for (i, (f, f_args, f_kwargs, f_output, kwargs)) in enumerate([
-        ("f1(x) = 2x",              mxtuple(3),         mxdict(),           mxtuple(6),          NamedTuple()),
-        ("f2(x; y) = x*y",          mxtuple(5.0),       mxdict("y" => 3),   mxtuple(15.0),       NamedTuple()),
-        ("f3() = nothing",          mxtuple(),          mxdict(),           mxtuple(),           NamedTuple()),
-        ("f4() = missing",          mxtuple(),          mxdict(),           mxtuple(mxempty()),  NamedTuple()),
-        ("f5(x,y) = (x,y)",         mxtuple("one", 2),  mxdict(),           mxtuple("one", 2),   NamedTuple()),
-        ("f6(x,y) = x*y",           mxtuple(3.0, 2),    mxdict(),           mxtuple(6.0),        NamedTuple()),
-        ("f7(x,y) = [x*y]",         mxtuple(3.0, 2),    mxdict(),           mxtuple(6.0),        NamedTuple()),
-        ("f8(x,y) = [x,y]",         mxtuple(3.0, 2.0),  mxdict(),           mxtuple([3.0, 2.0]), NamedTuple()),
-        ("f9(x) = Setup.mul2(x)",   mxtuple([2f0 3f0]), mxdict(),           mxtuple([4f0 6f0]),  (setup = "setup.jl", project = "TestProject")),
+        ("@eval Main f1(x) = 2x",              mxtuple(3),         mxdict(),           mxtuple(6),          NamedTuple()),
+        ("@eval Main f2(x; y) = x*y",          mxtuple(5.0),       mxdict("y" => 3),   mxtuple(15.0),       NamedTuple()),
+        ("@eval Main f3() = nothing",          mxtuple(),          mxdict(),           mxtuple(),           NamedTuple()),
+        ("@eval Main f4() = missing",          mxtuple(),          mxdict(),           mxtuple(mxempty()),  NamedTuple()),
+        ("@eval Main f5(x,y) = (x,y)",         mxtuple("one", 2),  mxdict(),           mxtuple("one", 2),   NamedTuple()),
+        ("@eval Main f6(x,y) = x*y",           mxtuple(3.0, 2),    mxdict(),           mxtuple(6.0),        NamedTuple()),
+        ("@eval Main f7(x,y) = [x*y]",         mxtuple(3.0, 2),    mxdict(),           mxtuple(6.0),        NamedTuple()),
+        ("@eval Main f8(x,y) = [x,y]",         mxtuple(3.0, 2.0),  mxdict(),           mxtuple([3.0, 2.0]), NamedTuple()),
+        ("@eval Main f9(x) = Setup.mul2(x)",   mxtuple([2f0 3f0]), mxdict(),           mxtuple([4f0 6f0]),  (setup = "setup.jl", project = "TestProject")),
     ])
         wrap_jlcall(f, f_args, f_kwargs, f_output; kwargs...)
         @test isdefined(Main, Symbol(:f, i))
