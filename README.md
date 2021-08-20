@@ -25,8 +25,8 @@ The positional arguments passed to `jlcall.m` are:
 2. Positional input arguments, given as a MATLAB `cell` array. For example, `args = {arg1, arg2, ...}`
 3. Keyword input arguments, given as a MATLAB `struct`. For example, `kwargs = struct('key1', value1, 'key2', value2, ...)`
 
-The first time `jlcall.m` is invoked, a Julia server is started as a background process.
-All calls to Julia are run on this server.
+By default, the first time `jlcall.m` is invoked a Julia server will be started as a background process using [`DaemonMode.jl`](https://github.com/dmolina/DaemonMode.jl).
+All subsequent calls to Julia are run on this server.
 The server will be automatically killed when MATLAB exits.
 
 ### Restarting the Julia server
@@ -89,7 +89,7 @@ ans =
 
 ### Unique environments
 
-Set the `'shared'` flag to `false` in order to evaluate each Julia call in a separate namespace:
+Set the `'shared'` flag to `false` in order to evaluate each Julia call in a separate namespace on the Julia server:
 
 ```matlab
 % Restart the server, setting 'shared' to false
@@ -101,6 +101,23 @@ ans =
 
 % This call would now error, despite the above command loading the LinearAlgebra module, as LinearAlgebra.norm is evaluated in a new namespace
 >> jlcall('LinearAlgebra.norm', {[3.0; 4.0]}, 'shared', false)
+```
+
+### Unique Julia instances
+
+Instead of running Julia code on a persistent Julia server, unique Julia instances can be launched for each call to `jlcall.m` by passing the `'server'` flag with value `false`.
+
+**Note:** this may cause significant overhead when repeatedly calling `jlcall.m` due to Julia package precompilation and loading:
+
+```matlab
+>> tic; jlcall('x -> sum(abs2, x)', {1:5}, 'server', false); toc
+Elapsed time is 4.181178 seconds. % unique Julia instance
+
+>> tic; jlcall('x -> sum(abs2, x)', {1:5}); toc
+Elapsed time is 5.046929 seconds. % first call initializes Julia server
+
+>> tic; jlcall('x -> sum(abs2, x)', {1:5}); tic
+Elapsed time is 0.267088 seconds. % repeated call significantly faster
 ```
 
 ### Loading code from a local project
@@ -140,9 +157,31 @@ ans =
 In this case, `jlcall('() -> string(Base.VERSION)')` would work just as well.
 In general, however, interfacing with complex Julia libraries using MATLAB types may be nontrivial, and the `'setup'` flag allows for the execution of arbitrary setup code.
 
+### Handling Julia outputs
+
+Output(s) from Julia are returned using the MATLAB `cell` array [`varargout`](https://www.mathworks.com/help/matlab/ref/varargout.html), MATLAB's variable-length list of output arguments.
+A helper function `JuliaFromMATLAB.matlabify` is used to convert Julia values into MATLAB-compatible values.
+In particular, the following rules are used to populate `varargout` with the Julia output `y`:
+
+1. If `y::Nothing`, then `varargout = {}` and no outputs are returned to MATLAB
+2. If `y::Tuple`, then `length(y)` outputs are returned, with `varargout{i}` given by `matlabify(y[i])`
+3. Otherwise one output is returned, with `varargout{1}` given by `matlabify(y)`
+
+where the following `matlabify` methods are defined by default:
+
+```julia
+matlabify(x) = x # default fallback
+matlabify(::Union{Nothing, Missing}) = zeros(0,0) # equivalent to MATLAB's []
+matlabify(x::Symbol) = string(x)
+matlabify(xs::Tuple) = Any[matlabify(x) for x in xs] # matlabify values
+matlabify(xs::Union{<:AbstractDict, <:NamedTuple, <:Base.Iterators.Pairs}) = Dict{String, Any}(string(k) => matlabify(v) for (k, v) in pairs(xs)) # convert keys to strings and matlabify values
+```
+
+**Note:** MATLAB `cell` and `struct` types correspond to `Array{Any}` and `Dict{String, Any}` in Julia.
+
 ## Internals
 
 This repository contains utilities for parsing and running Julia code, MATLAB input arguments, and other settings received via [jlcall.m](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m).
 
-The workhorse behind `JuliaFromMATLAB.jl` and `jlcall.m` is [DaemonMode.jl](https://github.com/dmolina/DaemonMode.jl) which is used to start a persistent Julia server in the background.
+The workhorse behind `JuliaFromMATLAB.jl` and `jlcall.m` is [`DaemonMode.jl`](https://github.com/dmolina/DaemonMode.jl) which is used to start a persistent Julia server in the background.
 MATLAB inputs and Julia ouputs are passed back and forth between MATLAB and the `DaemonMode.jl` server by writing to temporary `.mat` files.
