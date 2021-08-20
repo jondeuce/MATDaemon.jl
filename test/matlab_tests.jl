@@ -108,3 +108,12 @@ end
         @test is_eqq(mx_wrap_jlcall(0, "() -> nothing"; port = port, restart = true), nothing)
     end
 end
+
+@testset "extending matlabify" begin
+    setup_script = tempname() * ".jl"
+    open(setup_script; write = true) do io
+        println(io, "JuliaFromMATLAB.matlabify(v::Base.VersionNumber) = string(v)")
+    end
+    # Note: restart = true is important, as it tests the ability to call dynamically defined `matlabify` methods
+    @test is_eq(mx_wrap_jlcall(1, "() -> Base.VERSION"; restart = true, setup = setup_script), string(Base.VERSION))
+end

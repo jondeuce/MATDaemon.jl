@@ -141,8 +141,8 @@ function jlcall(mod::Module, opts::JLCallOptions)
     output = Base.invokelatest(f, opts.args...; juliafy_kwargs(opts.kwargs)...)
     output =
         output isa Nothing ? Any[] :
-        output isa Tuple   ? Any[map(matlabify, output)...] :
-        Any[matlabify(output)]
+        output isa Tuple   ? Any[Base.invokelatest.(matlabify, output)...] :
+        Any[Base.invokelatest(matlabify, output)]
 
     # Save outputs
     output_file = joinpath(opts.workspace, JL_OUTPUT)

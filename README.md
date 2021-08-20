@@ -77,7 +77,7 @@ ans =
 ### Persistent environments
 
 By default, previously loaded Julia code is available on subsequent calls to [jlcall.m](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m).
-For example, following the above call to `LinearAlgebra.norm`, the `LinearAlgebra.det` function can be called without loading `LinearAlgebra` again:
+For example, following the [above call](https://github.com/jondeuce/JuliaFromMATLAB.jl#loading-modules) to `LinearAlgebra.norm`, the `LinearAlgebra.det` function can be called without loading `LinearAlgebra` again:
 
 ```matlab
 >> jlcall('LinearAlgebra.det', {[1.0 2.0; 3.0 4.0]})
@@ -145,7 +145,6 @@ julia_version() = string(Base.VERSION)
 
 Then, use the `'setup'` flag to pass the above script to [jlcall.m](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m):
 
-
 ```matlab
 >> jlcall('julia_version', 'setup', '/path/to/setup.jl')
 
@@ -167,7 +166,7 @@ In particular, the following rules are used to populate `varargout` with the Jul
 2. If `y::Tuple`, then `length(y)` outputs are returned, with `varargout{i}` given by `matlabify(y[i])`
 3. Otherwise one output is returned, with `varargout{1}` given by `matlabify(y)`
 
-where the following `matlabify` methods are defined by default:
+Where the following `matlabify` methods are defined by default:
 
 ```julia
 matlabify(x) = x # default fallback
@@ -178,6 +177,24 @@ matlabify(xs::Union{<:AbstractDict, <:NamedTuple, <:Base.Iterators.Pairs}) = Dic
 ```
 
 **Note:** MATLAB `cell` and `struct` types correspond to `Array{Any}` and `Dict{String, Any}` in Julia.
+
+Conversion via `matlabify` can easily be extended to additional types.
+Returning to the example from the [above section](https://github.com/jondeuce/JuliaFromMATLAB.jl#loading-setup-code), we can define a `matlabify` method for `Base.VersionNumber`:
+
+```julia
+# setup.jl
+JuliaFromMATLAB.matlabify(v::Base.VersionNumber) = string(v)
+```
+
+Now, the return type will be automatically converted:
+
+```matlab
+>> jlcall('() -> Base.VERSION', 'setup', '/path/to/setup.jl')
+
+ans =
+
+    '1.6.1'
+```
 
 ## Internals
 
