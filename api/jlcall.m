@@ -142,7 +142,7 @@ function output = call_julia(opts)
 
     % Script to run from Julia
     job_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        sprintf('include(JuliaFromMATLAB.build_jlcall_script(%s))', jl_opts_without_args_kwargs(opts))
+        sprintf('JuliaFromMATLAB.@jlcall(%s)', jl_opts_without_args_kwargs(opts))
     });
 
     if opts.server

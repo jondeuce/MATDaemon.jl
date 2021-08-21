@@ -92,91 +92,61 @@ function kill(port::Int; verbose::Bool = false)
 end
 
 """
-Print prettified expression to `io`.
-"""
-prettyln(io, ex) = println(io, string(MacroTools.prettify(ex)))
-
-"""
 Build script for calling jlcall
 """
-function build_jlcall_script(opts::JLCallOptions)
-
-    # Build temporary julia script
-    jlcall_script = jlcall_tempname(mkpath(abspath(opts.workspace, "tmp"))) * ".jl"
-
-    open(jlcall_script; write = true) do io
+macro jlcall(ex)
+    esc(quote
+        # Input is JLCallOptions (without args and kwargs populated)
+        local opts = $(ex)
+        local Mod = $(__module__)
 
         # Change to current matlab working directory
-        prettyln(io, quote
-            cd($(abspath(opts.cwd)))
-        end)
+        cd(abspath(opts.cwd))
 
         # Push user project onto top of load path
-        if !isempty(opts.project)
-            prettyln(io, quote
-                if $(abspath(opts.project)) ∉ LOAD_PATH
-                    pushfirst!(LOAD_PATH, $(abspath(opts.project)))
-                end
-            end)
+        if !isempty(opts.project) && abspath(opts.project) ∉ LOAD_PATH
+            pushfirst!(LOAD_PATH, abspath(opts.project))
         end
 
         # Push workspace into back of load path
-        prettyln(io, quote
-            if $(abspath(opts.workspace)) ∉ LOAD_PATH
-                push!(LOAD_PATH, $(abspath(opts.workspace)))
-            end
-        end)
+        if abspath(opts.workspace) ∉ LOAD_PATH
+            push!(LOAD_PATH, abspath(opts.workspace))
+        end
 
         # Print environment for debugging
         if opts.debug
-            prettyln(io, quote
-                println("* Environment for evaluating Julia expression:")
-                println("*   Directory: $(pwd())")
-                println("*   Module: $(@__MODULE__)")
-                println("*   Load path: $(LOAD_PATH)\n")
-            end)
+            println("* Environment for evaluating Julia expression:")
+            println("*   Working dir: $(pwd())")
+            println("*   Module: $(@__MODULE__)")
+            println("*   Load path: $(LOAD_PATH)\n")
         end
 
         # JuliaFromMATLAB is always imported
-        prettyln(io, quote
-            import JuliaFromMATLAB
-        end)
+        import JuliaFromMATLAB
 
         # Include setup code
         if !isempty(opts.setup)
-            prettyln(io, quote
-                include($(abspath(opts.setup)))
-            end)
+            include(abspath(opts.setup))
         end
 
-        # Load modules; will fail if not installed
-        for mod in opts.modules
-            prettyln(io, quote
-                import $(Meta.parse(mod))
-            end)
+        # Load modules from strings; will fail if not installed (see: https://discourse.julialang.org/t/how-to-include-into-local-scope/34634/11)
+        for mod_str in opts.modules
+            Core.eval(Mod, Meta.parse("quote; import $(mod_str); end").args[1])
         end
 
-        # Call jlcall
-        prettyln(io, quote
-            JuliaFromMATLAB.jlcall(
-                let
-                    # See: https://discourse.julialang.org/t/how-to-include-into-local-scope/34634/11?u=jondeuce
-                    $(Meta.parse("quote; $(opts.f); end").args[1])
-                end;
-                workspace = $(abspath(opts.workspace))
-            )
-        end)
+        # Parse and evaluate `f` from string (see: https://discourse.julialang.org/t/how-to-include-into-local-scope/34634/11)
+        local f_expr = Meta.parse("quote; let; $(opts.f); end; end").args[1]
 
-    end
+        if opts.debug
+            println("* Generated Julia function expression: ")
+            println(string(JuliaFromMATLAB.MacroTools.prettify(f_expr)), "\n")
+        end
 
-    # Print generated file
-    if opts.debug
-        println("* Generated Julia script:")
-        println("*   $(jlcall_script)\n")
-        println(readchomp(jlcall_script) * "\n")
-    end
+        local f = Core.eval(Mod, f_expr)
 
-    return jlcall_script
+        # Call `f` using MATLAB input arguments
+        JuliaFromMATLAB.jlcall(f; workspace = abspath(opts.workspace))
+    end)
 end
 
 """
