@@ -63,17 +63,6 @@ function init_workspace(opts)
 
 end
 
-function init_server(opts)
-
-    % If shared is false, each Julia server call is executed in it's own Module to avoid namespace collisions, etc.
-    init_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        sprintf('JuliaFromMATLAB.start(%d; shared = %s, verbose = %s)', opts.port, jl_bool(opts.shared), jl_bool(opts.debug))
-    });
-
-    try_run(opts, init_script, 'server', 'Running `JuliaFromMATLAB.start` script from Julia server');
-
-end
-
 function start_server(opts)
 
     mlock % Prevent MATLAB from clearing persistent variables via e.g. `clear all`
@@ -89,7 +78,13 @@ function start_server(opts)
         if opts.debug
             fprintf('* Starting Julia server\n\n');
         end
-        init_server(opts);
+
+        % If shared is false, each Julia server call is executed in it's own Module to avoid namespace collisions, etc.
+        start_script = build_julia_script(opts, 'JuliaFromMATLAB', {
+            sprintf('JuliaFromMATLAB.start(%d; shared = %s, verbose = %s)', opts.port, jl_bool(opts.shared), jl_bool(opts.debug))
+        });
+
+        try_run(opts, start_script, 'server', 'Running `JuliaFromMATLAB.start` script from Julia server');
 
         % Wait for server pong
         while ~ping_server(opts)
@@ -307,16 +302,6 @@ function str = jl_maybe_stdout(bool)
         str = 'stdout';
     else
         str = 'devnull';
-    end
-
-end
-
-function str = jl_vector_of_strings(cell_strs)
-
-    if isempty(cell_strs)
-        str = 'Any[]';
-    else
-        str = ['Any[', sprintf('raw"%s",', cell_strs{:}), ']'];
     end
 
 end

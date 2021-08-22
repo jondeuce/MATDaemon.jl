@@ -15,7 +15,9 @@ const JL_INPUT = "jl_input.mat"
 const JL_OUTPUT = "jl_output.mat"
 
 """
-Convert Julia value to equivalent MATLAB representation
+    matlabify(x)
+
+Convert Julia value `x` to equivalent MATLAB representation
 """
 matlabify(x) = x # default
 matlabify(::Nothing) = zeros(Float64, 0, 0) # represent `Nothing` as MATLAB's `[]`
@@ -31,10 +33,11 @@ matlabify_output(x) = Any[matlabify(x)] # default
 matlabify_output(::Nothing) = Any[]
 matlabify_output(x::Tuple) = Any[map(matlabify, x)...]
 
-# Convert MATLAB values to equivalent Julia representation
 juliafy_kwargs(xs) = Pair{Symbol, Any}[Symbol(k) => v for (k, v) in xs]
 
 """
+    JLCallOptions
+
 Julia struct for storing jlcall.m input parser results
 """
 Base.@kwdef struct JLCallOptions
@@ -59,6 +62,8 @@ end
 matlabify(opts::JLCallOptions) = Dict{String, Any}(string(k) => matlabify(getproperty(opts, k)) for k in fieldnames(JLCallOptions))
 
 """
+    start(port::Int; shared::Bool, verbose::Bool = false)
+
 Start Julia server.
 """
 function start(port::Int; shared::Bool, verbose::Bool = false)
@@ -68,6 +73,8 @@ function start(port::Int; shared::Bool, verbose::Bool = false)
 end
 
 """
+    kill(port::Int; verbose::Bool = false)
+
 Kill Julia server. If server is already killed, do nothing.
 """
 function kill(port::Int; verbose::Bool = false)
@@ -88,6 +95,8 @@ function kill(port::Int; verbose::Bool = false)
 end
 
 """
+    load_options(workspace::String)
+
 Load jlcall.m input parser results from `workspace`
 """
 function load_options(workspace::String)
@@ -98,10 +107,12 @@ function load_options(workspace::String)
 end
 
 """
+    init_environment(opts::JLCallOptions)
+
 Initialize jlcall environment.
 """
 function init_environment(opts::JLCallOptions)
-    # Change to current matlab working directory
+    # Change to current MATLAB working directory
     cd(abspath(opts.cwd))
 
     # Push user project onto top of load path
@@ -118,7 +129,9 @@ function init_environment(opts::JLCallOptions)
 end
 
 """
-Save jlcall output results into `workspace`
+    save_output(output, opts::JLCallOptions)
+
+Save jlcall output results into workspace
 """
 function save_output(output, opts::JLCallOptions)
     # Save outputs to workspace
@@ -136,15 +149,21 @@ function save_output(output, opts::JLCallOptions)
 end
 
 """
+    jlcall(f::F, opts::JLCallOptions)
+
 Run Julia function `f` using jlcall.m input parser results `opts`.
 """
 function jlcall(f::F, opts::JLCallOptions) where {F}
+    # Since `f` is dynamically defined in a global scope, try to force specialization on `f` (may help performance)
     out = f(opts.args...; juliafy_kwargs(opts.kwargs)...)
     return matlabify_output(out)
 end
 
 """
-Build script for calling jlcall
+    @jlcall workspace::String
+
+Dynamically define user function `f`.
+Call `f` using the jlcall.m input parser results from `workspace`.
 """
 macro jlcall(workspace)
     esc(quote
@@ -191,15 +210,6 @@ macro jlcall(workspace)
         # Save results to workspace
         $(save_output)(output, opts)
     end)
-end
-
-# Generate tempnames with numbered prefix for easier debugging
-const jlcall_tempname_count = Ref(0)
-
-function jlcall_tempname(parent::String)
-    tmp = lpad(jlcall_tempname_count[], 4, '0') * "_" * basename(tempname())
-    jlcall_tempname_count[] = mod(jlcall_tempname_count[] + 1, 10_000)
-    return abspath(parent, tmp)
 end
 
 end # module JuliaFromMATLAB

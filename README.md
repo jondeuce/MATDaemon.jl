@@ -21,11 +21,11 @@ ans =
 ```
 
 The positional arguments passed to `jlcall.m` are:
-1. The Julia function to call, given as a MATLAB `char` array. This can be any Julia expression which evaluates to a function. For example, `a=2; b=3; x -> a*x+b'`. **Note:** this expression is wrapped in a `let` block and evaluated in the global scope
-2. Positional input arguments, given as a MATLAB `cell` array. For example, `args = {arg1, arg2, ...}`
-3. Keyword input arguments, given as a MATLAB `struct`. For example, `kwargs = struct('key1', value1, 'key2', value2, ...)`
+1. The Julia function to call, given as a MATLAB `char` array. This can be any Julia expression which evaluates to a function. For example, `'a=2; b=3; x -> a*x+b'`. **Note:** this expression is wrapped in a `let` block and evaluated in the global scope
+2. Positional arguments, given as a MATLAB `cell` array. For example, `args = {arg1, arg2, ...}`
+3. Keyword arguments, given as a MATLAB `struct`. For example, `kwargs = struct('key1', value1, 'key2', value2, ...)`
 
-By default, the first time `jlcall.m` is invoked a Julia server will be started as a background process using [`DaemonMode.jl`](https://github.com/dmolina/DaemonMode.jl).
+By default, the first time `jlcall.m` is invoked a Julia server will be started in the background using [`DaemonMode.jl`](https://github.com/dmolina/DaemonMode.jl).
 All subsequent calls to Julia are run on this server.
 The server will be automatically killed when MATLAB exits.
 
@@ -99,8 +99,11 @@ ans =
 
      5
 
-% This call would now error, despite the above command loading the LinearAlgebra module, as LinearAlgebra.norm is evaluated in a new namespace
+% This call now errors, despite the above command loading the LinearAlgebra module, as LinearAlgebra.norm is evaluated in a new namespace
 >> jlcall('LinearAlgebra.norm', {[3.0; 4.0]}, 'shared', false)
+ERROR: LoadError: UndefVarError: LinearAlgebra not defined
+Stacktrace:
+ ...
 ```
 
 ### Unique Julia instances
@@ -111,13 +114,13 @@ Instead of running Julia code on a persistent Julia server, unique Julia instanc
 
 ```matlab
 >> tic; jlcall('x -> sum(abs2, x)', {1:5}, 'server', false); toc
-Elapsed time is 4.181178 seconds. % unique Julia instance
+Elapsed time is 4.181178 seconds. % call unique Julia instance
+
+>> tic; jlcall('x -> sum(abs2, x)', {1:5}, 'restart', true); toc
+Elapsed time is 5.046929 seconds. % re-initialize Julia server
 
 >> tic; jlcall('x -> sum(abs2, x)', {1:5}); toc
-Elapsed time is 5.046929 seconds. % first call initializes Julia server
-
->> tic; jlcall('x -> sum(abs2, x)', {1:5}); tic
-Elapsed time is 0.267088 seconds. % repeated call significantly faster
+Elapsed time is 0.267088 seconds. % call server; significantly faster
 ```
 
 ### Loading code from a local project
@@ -129,6 +132,8 @@ Code from a local Julia project can be loaded and called:
     'project', '/path/to/MyProject', ...
     'modules', {'MyProject'})
 ```
+
+**Note:** the value of the `'project'` flag is simply added to the Julia `LOAD_PATH`; it is the user's responsibility to ensure that the project's dependencies have been installed.
 
 ### Loading setup code
 
@@ -155,6 +160,8 @@ ans =
 
 In this case, `jlcall('() -> string(Base.VERSION)')` would work just as well.
 In general, however, interfacing with complex Julia libraries using MATLAB types may be nontrivial, and the `'setup'` flag allows for the execution of arbitrary setup code.
+
+**Note:** the setup script is loaded into the global scope using `include`; when using [persistent environments](https://github.com/jondeuce/JuliaFromMATLAB.jl#persistent-environments), symbols defined in the setup script will be available on subsequent calls to jlcall.m.
 
 ### Handling Julia outputs
 
@@ -196,10 +203,14 @@ ans =
     '1.6.1'
 ```
 
-## Internals
+### Performance
 
-This repository contains utilities for parsing and running Julia code, MATLAB input arguments, and other settings received via [jlcall.m](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m).
-
-The workhorse behind `JuliaFromMATLAB.jl` and `jlcall.m` is [`DaemonMode.jl`](https://github.com/dmolina/DaemonMode.jl) which is used to start a persistent Julia server in the background.
 MATLAB inputs and Julia ouputs are passed back and forth between MATLAB and the `DaemonMode.jl` server by writing to temporary `.mat` files.
 This naturally leads to some overhead when calling Julia, particularly when the MATLAB inputs and/or Julia outputs have large memory footprints.
+It is therefore not recommended to use `jlcall.m` in performance critical loops.
+
+## About this package
+
+This repository contains utilities for parsing and running Julia code, passing MATLAB arguments to Julia, and retrieving Julia outputs from MATLAB.
+
+The workhorse behind `JuliaFromMATLAB.jl` and `jlcall.m` is [`DaemonMode.jl`](https://github.com/dmolina/DaemonMode.jl) which is used to start a persistent Julia server in the background.
