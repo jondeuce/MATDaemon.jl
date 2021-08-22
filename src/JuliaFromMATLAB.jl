@@ -187,7 +187,7 @@ macro jlcall(workspace)
 
         # Include setup code
         if !isempty(opts.setup)
-            include(abspath(opts.setup))
+            $(__module__).include(abspath(opts.setup))
         end
 
         # Load modules from strings; will fail if not installed
