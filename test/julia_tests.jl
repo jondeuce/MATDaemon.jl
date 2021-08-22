@@ -1,10 +1,3 @@
-using Test
-using Base.Iterators: Pairs
-using Distributed
-using JuliaFromMATLAB
-using JuliaFromMATLAB: DaemonMode, JLCallOptions, jlcall, matlabify
-using MAT
-
 struct A
     x
     y
@@ -84,7 +77,7 @@ end
     # Wait until server is running
     server_running = false
     while !server_running
-        @test DaemonMode.runexpr("@eval Main __SERVER_RUNNING__() = :SERVER_RUNNING"; port = port) === nothing
+        @test JuliaFromMATLAB.DaemonMode.runexpr("@eval Main __SERVER_RUNNING__() = :SERVER_RUNNING"; port = port) === nothing
         server_running = fetch(@spawnat 2 isdefined(Main, :__SERVER_RUNNING__))
         sleep(1.0)
     end
@@ -102,53 +95,34 @@ end
 end
 
 @testset "jlcall" begin
-    function wrap_jlcall(f, f_args, f_kwargs, f_output; kwargs...)
-        opts = JLCallOptions(;
-            f         = f,
-            args      = f_args,
-            kwargs    = f_kwargs,
-            workspace = initialize_workspace(),
-            debug     = true,
-            kwargs...,
-        )
-        input_file = joinpath(opts.workspace, JuliaFromMATLAB.JL_INPUT)
-        output_file = joinpath(opts.workspace, JuliaFromMATLAB.JL_OUTPUT)
+    # Test jlcall, ensuring that function definitions don't leak into Main
+    for (i, (f, f_args, f_kwargs, f_output, kwargs)) in enumerate([
+        ("f1(x) = LinearAlgebra.norm(x)",    mxtuple([3.0, 4.0]),    mxdict(),           mxtuple(5.0),           (modules = ["LinearAlgebra"],)),
+        ("f2(x; y) = x*y",                   mxtuple(5.0),           mxdict("y" => 3),   mxtuple(15.0),          NamedTuple()),
+        ("f3() = nothing",                   mxtuple(),              mxdict(),           mxtuple(),              NamedTuple()),
+        ("f4() = missing",                   mxtuple(),              mxdict(),           mxtuple(mxempty()),     NamedTuple()),
+    ])
+        wrap_jlcall(f, f_args, f_kwargs, f_output; kwargs...)
+        @test !isdefined(Main, Symbol(:f, i))
+    end
 
-        MAT.matwrite(input_file, matlabify(opts))
-        @test isfile(input_file)
-        @test is_eq(opts, JLCallOptions(input_file))
-
-        @eval Main JuliaFromMATLAB.@jlcall($opts)
-
-        @test isfile(output_file)
-        @test is_eq(f_output, MAT.matread(output_file)["output"])
-
-        rm(input_file; force = true)
-        rm(output_file; force = true)
+    # Test jlcall, explicitly adding methods to Main
+    for (f_sym, f_str, f_args, f_kwargs, f_output, kwargs) in [
+        (:f5, "@eval Main f5(x,y) = (x,y)",         mxtuple("one", 2),      mxdict(),           mxtuple("one", 2),      NamedTuple()),
+        (:f6, "@eval Main f6(x,y) = x*y",           mxtuple(3.0, 2),        mxdict(),           mxtuple(6.0),           NamedTuple()),
+        (:f7, "@eval Main f7(x,y) = [x*y]",         mxtuple(3.0, 2),        mxdict(),           mxtuple(6.0),           NamedTuple()),
+        (:f8, "@eval Main f8(x,y) = [x,y]",         mxtuple(3.0, 2.0),      mxdict(),           mxtuple([3.0, 2.0]),    NamedTuple()),
+        (:f9, "@eval Main f9(x) = Setup.mul2(x)",   mxtuple([2f0 3f0]),     mxdict(),           mxtuple([4f0 6f0]),     (setup = "setup.jl", project = "TestProject")),
+    ]
+        wrap_jlcall(f_str, f_args, f_kwargs, f_output; kwargs...)
+        @test isdefined(Main, f_sym)
     end
 
     # This should fail, as Base.VERSION has type VersionNumber and therefore cannot be written to .mat
-    @test_throws ErrorException wrap_jlcall("@eval Main f0() = Base.VERSION", mxtuple(), mxdict(), mxtuple(string(Base.VERSION)))
-    @test isdefined(Main, :f0)
+    @test_throws ErrorException wrap_jlcall("@eval Main f10() = Base.VERSION", mxtuple(), mxdict(), mxtuple(string(Base.VERSION)))
+    @test isdefined(Main, :f10)
 
-    # Fix `f0` by extending `matlabify` to `VersionNumber`s
+    # Fix `f10` by extending `matlabify` to `VersionNumber`s
     JuliaFromMATLAB.matlabify(v::Base.VersionNumber) = string(v)
-    wrap_jlcall("Main.f0", mxtuple(), mxdict(), mxtuple(string(Base.VERSION)))
-
-    # Test various combinations of expected jlcall inputs and outputs
-    for (i, (f, f_args, f_kwargs, f_output, kwargs)) in enumerate([
-        ("@eval Main f1(x) = LinearAlgebra.norm(x)",    mxtuple([3.0, 4.0]),    mxdict(),           mxtuple(5.0),           (modules = ["LinearAlgebra"],)),
-        ("@eval Main f2(x; y) = x*y",                   mxtuple(5.0),           mxdict("y" => 3),   mxtuple(15.0),          NamedTuple()),
-        ("@eval Main f3() = nothing",                   mxtuple(),              mxdict(),           mxtuple(),              NamedTuple()),
-        ("@eval Main f4() = missing",                   mxtuple(),              mxdict(),           mxtuple(mxempty()),     NamedTuple()),
-        ("@eval Main f5(x,y) = (x,y)",                  mxtuple("one", 2),      mxdict(),           mxtuple("one", 2),      NamedTuple()),
-        ("@eval Main f6(x,y) = x*y",                    mxtuple(3.0, 2),        mxdict(),           mxtuple(6.0),           NamedTuple()),
-        ("@eval Main f7(x,y) = [x*y]",                  mxtuple(3.0, 2),        mxdict(),           mxtuple(6.0),           NamedTuple()),
-        ("@eval Main f8(x,y) = [x,y]",                  mxtuple(3.0, 2.0),      mxdict(),           mxtuple([3.0, 2.0]),    NamedTuple()),
-        ("@eval Main f9(x) = Setup.mul2(x)",            mxtuple([2f0 3f0]),     mxdict(),           mxtuple([4f0 6f0]),     (setup = "setup.jl", project = "TestProject")),
-    ])
-        wrap_jlcall(f, f_args, f_kwargs, f_output; kwargs...)
-        @test isdefined(Main, Symbol(:f, i))
-    end
-
+    wrap_jlcall("Main.f10", mxtuple(), mxdict(), mxtuple(string(Base.VERSION)))
 end

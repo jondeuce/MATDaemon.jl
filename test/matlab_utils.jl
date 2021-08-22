@@ -1,7 +1,3 @@
-using Pkg
-using JuliaFromMATLAB: JLCallOptions, matlabify
-using MATLAB: mxcall
-
 #### Wrapper for calling jlcall.m via MATLAB.jl
 
 function mx_wrap_jlcall(
@@ -17,18 +13,25 @@ function mx_wrap_jlcall(
         args      = matlabify(f_args),
         kwargs    = matlabify(f_kwargs),
         workspace = initialize_workspace(),
-        debug     = false,
+        debug     = true,
         gc        = true,
         port      = 5678,
         kwargs...,
     )
 
-    mx_args = Any[opts.f, opts.args, opts.kwargs]
+    mxargs = Any[opts.f, opts.args, opts.kwargs]
     for k in fieldnames(JLCallOptions)
         k ∈ (:f, :args, :kwargs) && continue
-        push!(mx_args, string(k))
-        push!(mx_args, getproperty(opts, k))
+        push!(mxargs, string(k))
+        push!(mxargs, getproperty(opts, k))
     end
 
-    mxcall(:jlcall, nargout, mx_args...)
+    f_output = mxcall(:jlcall, nargout, mxargs...)
+
+    input_file = joinpath(opts.workspace, JuliaFromMATLAB.JL_INPUT)
+    output_file = joinpath(opts.workspace, JuliaFromMATLAB.JL_OUTPUT)
+    @test xor(isfile(input_file), opts.gc)
+    @test xor(isfile(output_file), opts.gc)
+
+    return f_output
 end

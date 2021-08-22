@@ -142,7 +142,7 @@ function output = call_julia(opts)
 
     % Script to run from Julia
     job_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        sprintf('JuliaFromMATLAB.@jlcall(%s)', jl_opts_without_args_kwargs(opts))
+        sprintf('JuliaFromMATLAB.@jlcall(raw"%s")', opts.workspace)
     });
 
     if opts.server
@@ -255,30 +255,6 @@ function julia = try_find_julia()
     catch me
         % Ignore error; default to 'julia'
     end
-
-end
-
-function jl_opts = jl_opts_without_args_kwargs(opts)
-
-    % This is a bit of a hack, but it is a nice way to easily pass the user settings to Julia without
-    % incurring the full cost of loading the args and/or kwargs, which may have large memory footprints
-    jl_opts = {
-        sprintf('f         = raw"%s",', opts.f)
-        sprintf('julia     = raw"%s",', opts.julia)
-        sprintf('project   = raw"%s",', opts.project)
-        sprintf('threads   = %d,',      opts.threads)
-        sprintf('setup     = raw"%s",', opts.setup)
-        sprintf('modules   = %s,',      jl_vector_of_strings(opts.modules))
-        sprintf('cwd       = raw"%s",', opts.cwd)
-        sprintf('workspace = raw"%s",', opts.workspace)
-        sprintf('server    = %s,',      jl_bool(opts.server))
-        sprintf('port      = %d,',      opts.port)
-        sprintf('shared    = %s,',      jl_bool(opts.shared))
-        sprintf('restart   = %s,',      jl_bool(opts.restart))
-        sprintf('gc        = %s,',      jl_bool(opts.gc))
-        sprintf('debug     = %s,',      jl_bool(opts.debug))
-    };
-    jl_opts = ['JuliaFromMATLAB.JLCallOptions(;', sprintf('\n    %s', jl_opts{:}), sprintf('\n)')];
 
 end
 

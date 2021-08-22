@@ -1,21 +1,28 @@
+using Test
+using JuliaFromMATLAB
+using JuliaFromMATLAB: JLCallOptions, @jlcall, matlabify
+
+using Distributed
+using GarishPrint
+using MAT
+using Pkg
+
+# Try loading MATLAB
+RUN_MATLAB_TESTS = false
+try
+    @eval using MATLAB: MEngineError, mxcall
+    mxcall(:addpath, 0, realpath(joinpath(@__DIR__, "..", "api")))
+    global RUN_MATLAB_TESTS = true
+catch e
+    @warn "`import MATLAB` failed; skipping MATLAB tests" exception=(e, catch_backtrace())
+end
+
 #### Julia tests
 
 include("utils.jl")
 include("julia_tests.jl")
 
 #### MATLAB tests
-
-# Try loading MATLAB before running MATLAB tests
-RUN_MATLAB_TESTS = false
-try
-    # Try loading MATLAB and adding jlcall.m to the MATLAB load path
-    @eval using MATLAB: mxcall
-    mxcall(:addpath, 0, realpath(joinpath(@__DIR__, "..", "api")))
-    global RUN_MATLAB_TESTS = true
-
-catch e
-    @warn "`import MATLAB` failed; skipping MATLAB tests" exception=(e, catch_backtrace())
-end
 
 if RUN_MATLAB_TESTS
     include("matlab_utils.jl")

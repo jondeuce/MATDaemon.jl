@@ -27,6 +27,10 @@ matlabify(xs::Union{<:AbstractDict, <:NamedTuple, <:Base.Iterators.Pairs}) = mat
 matlabify_iterable(xs) = Any[matlabify(x) for x in xs]
 matlabify_pairs(xs) = Dict{String, Any}(string(k) => matlabify(v) for (k, v) in pairs(xs))
 
+matlabify_output(x) = Any[matlabify(x)] # default
+matlabify_output(::Nothing) = Any[]
+matlabify_output(x::Tuple) = Any[map(matlabify, x)...]
+
 # Convert MATLAB values to equivalent Julia representation
 juliafy_kwargs(xs) = Pair{Symbol, Any}[Symbol(k) => v for (k, v) in xs]
 
@@ -52,15 +56,7 @@ Base.@kwdef struct JLCallOptions
     debug::Bool               = false
 end
 
-function JLCallOptions(mxfile::String; kwargs...)
-    maybevec(x) = x isa AbstractArray ? vec(x) : x
-    opts = Dict{Symbol, Any}(Symbol(k) => maybevec(v) for (k, v) in MAT.matread(mxfile))
-    JLCallOptions(; opts..., kwargs...)
-end
-
-function matlabify(opts::JLCallOptions)
-    return Dict{String, Any}(string(k) => matlabify(getproperty(opts, k)) for k in fieldnames(JLCallOptions))
-end
+matlabify(opts::JLCallOptions) = Dict{String, Any}(string(k) => matlabify(getproperty(opts, k)) for k in fieldnames(JLCallOptions))
 
 """
 Start Julia server.
@@ -92,26 +88,71 @@ function kill(port::Int; verbose::Bool = false)
 end
 
 """
+Load jlcall.m input parser results from `workspace`
+"""
+function load_options(workspace::String)
+    maybevec(x) = x isa AbstractArray ? vec(x) : x
+    mxopts = MAT.matread(abspath(workspace, JL_INPUT))
+    kwargs = Dict{Symbol, Any}(Symbol(k) => maybevec(v) for (k, v) in mxopts)
+    return JLCallOptions(; kwargs..., workspace = abspath(workspace))
+end
+
+"""
+Initialize jlcall environment.
+"""
+function init_environment(opts::JLCallOptions)
+    # Change to current matlab working directory
+    cd(abspath(opts.cwd))
+
+    # Push user project onto top of load path
+    if !isempty(opts.project) && abspath(opts.project) ∉ LOAD_PATH
+        pushfirst!(LOAD_PATH, abspath(opts.project))
+    end
+
+    # Push workspace into back of load path
+    if abspath(opts.workspace) ∉ LOAD_PATH
+        push!(LOAD_PATH, abspath(opts.workspace))
+    end
+
+    return nothing
+end
+
+"""
+Save jlcall output results into `workspace`
+"""
+function save_output(output, opts::JLCallOptions)
+    # Save outputs to workspace
+    output_file = abspath(opts.workspace, JL_OUTPUT)
+
+    try
+        MAT.matwrite(output_file, Dict{String, Any}("output" => output))
+    catch e
+        println("* ERROR: Unable to write Julia output to .mat:\n*   ", output_file, "\n")
+        rm(output_file; force = true)
+        rethrow()
+    end
+
+    return nothing
+end
+
+"""
+Run Julia function `f` using jlcall.m input parser results `opts`.
+"""
+function jlcall(f::F, opts::JLCallOptions) where {F}
+    out = f(opts.args...; juliafy_kwargs(opts.kwargs)...)
+    return matlabify_output(out)
+end
+
+"""
 Build script for calling jlcall
 """
-macro jlcall(ex)
+macro jlcall(workspace)
     esc(quote
-        # Input is JLCallOptions (without args and kwargs populated)
-        local opts = $(ex)
-        local Mod = $(__module__)
+        # Input is workspace directory containing jlcall.m input parser results
+        local opts = $(load_options)($(workspace))
 
-        # Change to current matlab working directory
-        cd(abspath(opts.cwd))
-
-        # Push user project onto top of load path
-        if !isempty(opts.project) && abspath(opts.project) ∉ LOAD_PATH
-            pushfirst!(LOAD_PATH, abspath(opts.project))
-        end
-
-        # Push workspace into back of load path
-        if abspath(opts.workspace) ∉ LOAD_PATH
-            push!(LOAD_PATH, abspath(opts.workspace))
-        end
+        # Initialize load path etc.
+        $(init_environment)(opts)
 
         # Print environment for debugging
         if opts.debug
@@ -131,7 +172,7 @@ macro jlcall(ex)
 
         # Load modules from strings; will fail if not installed (see: https://discourse.julialang.org/t/how-to-include-into-local-scope/34634/11)
         for mod_str in opts.modules
-            Core.eval(Mod, Meta.parse("quote; import $(mod_str); end").args[1])
+            Core.eval($(__module__), Meta.parse("quote; import $(mod_str); end").args[1])
         end
 
         # Parse and evaluate `f` from string (see: https://discourse.julialang.org/t/how-to-include-into-local-scope/34634/11)
@@ -139,47 +180,17 @@ macro jlcall(ex)
 
         if opts.debug
             println("* Generated Julia function expression: ")
-            println(string(JuliaFromMATLAB.MacroTools.prettify(f_expr)), "\n")
+            println(string($(MacroTools.prettify)(f_expr)), "\n")
         end
 
-        local f = Core.eval(Mod, f_expr)
+        local f = Core.eval($(__module__), f_expr)
 
         # Call `f` using MATLAB input arguments
-        JuliaFromMATLAB.jlcall(f; workspace = abspath(opts.workspace))
+        local output = $(jlcall)(f, opts)
+
+        # Save results to workspace
+        $(save_output)(output, opts)
     end)
-end
-
-"""
-Run Julia function `f`, loading jlcall.m input parser results from `workspace`
-"""
-function jlcall(f; workspace::String)
-    # Load input parser results from workspace
-    opts = JLCallOptions(abspath(workspace, JL_INPUT); workspace = abspath(workspace))
-    jlcall(f, opts)
-end
-
-"""
-Run Julia function `f` using jlcall.m input parser results `opts`.
-"""
-function jlcall(f, opts::JLCallOptions)
-    # Evaluate expression and call returned function
-    output = f(opts.args...; juliafy_kwargs(opts.kwargs)...)
-    output =
-        output isa Nothing ? Any[] :
-        output isa Tuple   ? Any[map(matlabify, output)...] :
-        Any[matlabify(output)]
-
-    # Save outputs
-    output_file = abspath(opts.workspace, JL_OUTPUT)
-    try
-        MAT.matwrite(output_file, Dict{String, Any}("output" => output))
-    catch e
-        println("* ERROR: Unable to write Julia output to .mat:\n*   ", output_file, "\n")
-        rm(output_file; force = true)
-        rethrow()
-    end
-
-    return nothing
 end
 
 # Generate tempnames with numbered prefix for easier debugging

@@ -1,7 +1,3 @@
-using Pkg
-using GarishPrint: pprint
-using JuliaFromMATLAB: JLCallOptions
-
 #### Misc. utils
 
 mxdict(args...) = Dict{String, Any}(args...)
@@ -41,8 +37,35 @@ is_eqq(x, y) = recurse_is_equal(typed_is_equal(===), x, y) || pprint_compare((; 
 function pprint_compare(args::NamedTuple)
     for (k, v) in pairs(args)
         @info "Argument: $k"
-        pprint(v)
+        GarishPrint.pprint(v)
         println("")
     end
     return false
+end
+
+#### Convenience method for calling + testing @jlcall
+
+function wrap_jlcall(f, f_args, f_kwargs, f_output; kwargs...)
+    opts = JLCallOptions(;
+        f         = f,
+        args      = f_args,
+        kwargs    = f_kwargs,
+        workspace = initialize_workspace(),
+        debug     = true,
+        kwargs...,
+    )
+    input_file = joinpath(opts.workspace, JuliaFromMATLAB.JL_INPUT)
+    output_file = joinpath(opts.workspace, JuliaFromMATLAB.JL_OUTPUT)
+
+    MAT.matwrite(input_file, matlabify(opts))
+    @test isfile(input_file)
+    @test is_eq(opts, JuliaFromMATLAB.load_options(opts.workspace))
+
+    @eval Main @jlcall($(opts.workspace))
+
+    @test isfile(output_file)
+    @test is_eq(f_output, MAT.matread(output_file)["output"])
+
+    rm(input_file; force = true)
+    rm(output_file; force = true)
 end
