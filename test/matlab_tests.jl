@@ -61,7 +61,7 @@ end
 end
 
 @testset "setting threads" begin
-    @test is_eq(mx_wrap_jlcall(1, "() -> Base.Threads.nthreads()"; threads = 3, restart = true), 3) # Restart julia with --threads=3
+    @test is_eq(mx_wrap_jlcall(1, "() -> Base.Threads.nthreads()"; threads = 3, restart = true), 3) # Restart Julia with --threads=3
     @test is_eq(mx_wrap_jlcall(1, "() -> Base.Threads.nthreads()"; threads = 4), 3) # Setting threads shouldn't change active session
 end
 

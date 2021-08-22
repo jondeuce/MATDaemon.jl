@@ -44,7 +44,7 @@ Base.@kwdef struct JLCallOptions
     f::String                 = "(args...; kwargs...) -> nothing"
     args::Vector{Any}         = Any[]
     kwargs::Dict{String, Any} = Dict{String, Any}()
-    julia::String             = abspath(Base.Sys.BINDIR, "julia")
+    runtime::String           = abspath(Base.Sys.BINDIR, "julia")
     project::String           = ""
     threads::Int              = Base.Threads.nthreads()
     setup::String             = ""

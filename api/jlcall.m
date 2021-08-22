@@ -24,7 +24,7 @@ function opts = parse_inputs(varargin)
     addOptional(p, 'f', '(args...; kwargs...) -> nothing', @ischar);
     addOptional(p, 'args', {}, @iscell);
     addOptional(p, 'kwargs', struct, @isstruct);
-    addParameter(p, 'julia', try_find_julia, @ischar);
+    addParameter(p, 'runtime', try_find_julia_runtime, @ischar);
     addParameter(p, 'project', '', @ischar);
     addParameter(p, 'threads', maxNumCompThreads, @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
     addParameter(p, 'setup', '', @ischar);
@@ -221,7 +221,7 @@ function try_run(opts, script, mode, msg)
     end
 
     % Build and run Julia command
-    cmd = [opts.julia, ' ', flags, ' ', script, detach];
+    cmd = [opts.runtime, ' ', flags, ' ', script, detach];
     st = system(cmd);
 
     if opts.debug
@@ -230,10 +230,10 @@ function try_run(opts, script, mode, msg)
 
 end
 
-function julia = try_find_julia()
+function runtime = try_find_julia_runtime()
 
     % Default value
-    julia = 'julia';
+    runtime = 'julia';
 
     try
         if isunix
@@ -241,14 +241,13 @@ function julia = try_find_julia()
         elseif ispc
             [st, res] = system('where julia');
         else
-            % Default to 'julia'
-            return
+            return % default to 'julia'
         end
         if st == 0
-            julia = strtrim(res);
+            runtime = strtrim(res);
         end
     catch me
-        % Ignore error; default to 'julia'
+        % ignore error; default to 'julia'
     end
 
 end
