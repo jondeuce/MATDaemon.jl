@@ -162,8 +162,9 @@ end
 """
     @jlcall workspace::String
 
-Dynamically define user function `f`.
-Call `f` using the jlcall.m input parser results from `workspace`.
+Dynamically include code, import modules, and evaluate function expressions indicated by the user settings file $(JL_INPUT) located in the folder `workspace`.
+
+This macro should be evaluated at the top level of the module in which the above symbols should be defined.
 """
 macro jlcall(workspace)
     esc(quote
@@ -189,13 +190,14 @@ macro jlcall(workspace)
             include(abspath(opts.setup))
         end
 
-        # Load modules from strings; will fail if not installed (see: https://discourse.julialang.org/t/how-to-include-into-local-scope/34634/11)
+        # Load modules from strings; will fail if not installed
         for mod_str in opts.modules
-            Core.eval($(__module__), Meta.parse("quote; import $(mod_str); end").args[1])
+            local mod = Meta.parse(mod_str)
+            Core.eval($(__module__), :(import $(mod)))
         end
 
-        # Parse and evaluate `f` from string (see: https://discourse.julialang.org/t/how-to-include-into-local-scope/34634/11)
-        local f_expr = Meta.parse("quote; let; $(opts.f); end; end").args[1]
+        # Parse and evaluate `f` from string
+        local f_expr = :(let; $(Meta.parse(opts.f)); end)
 
         if opts.debug
             println("* Generated Julia function expression: ")
