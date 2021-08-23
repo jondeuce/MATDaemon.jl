@@ -1,5 +1,7 @@
 # JuliaFromMATLAB.jl
 
+## Index
+
 ```@index
 Modules = [JuliaFromMATLAB]
 ```
