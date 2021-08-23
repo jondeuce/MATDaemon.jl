@@ -25,8 +25,11 @@ The positional arguments passed to [`jlcall.m`](https://github.com/jondeuce/Juli
 2. Positional arguments, given as a MATLAB `cell` array. For example, `args = {arg1, arg2, ...}`
 3. Keyword arguments, given as a MATLAB `struct`. For example, `kwargs = struct('key1', value1, 'key2', value2, ...)`
 
-By default, the first time [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m) is invoked a Julia server will be started in the background using [`DaemonMode.jl`](https://github.com/dmolina/DaemonMode.jl).
-All subsequent calls to Julia are run on this server.
+The first time [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m) is invoked:
+1. `JuliaFromMATLAB.jl` will be installed into a local Julia project, if one does not already exist. By default, a folder `.jlcall` is created in the same folder as [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m)
+2. A Julia server will be started in the background using [`DaemonMode.jl`](https://github.com/dmolina/DaemonMode.jl)
+
+All subsequent calls to Julia are run on the Julia server.
 The server will be automatically killed when MATLAB exits.
 
 ### Restarting the Julia server
@@ -208,6 +211,24 @@ ans =
 MATLAB inputs and Julia ouputs are passed back and forth between MATLAB and the `DaemonMode.jl` server by writing to temporary `.mat` files.
 This naturally leads to some overhead when calling Julia, particularly when the MATLAB inputs and/or Julia outputs have large memory footprints.
 It is therefore not recommended to use [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m) in performance critical loops.
+
+## MATLAB and Julia version compatibility
+
+This package has been tested on a variety of MATLAB versions.
+However, for some versions of Julia and MATLAB, supported versions of external libraries may clash.
+For example, running [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m) using Julia v1.6.1 and MATLAB R2015b gives the following error:
+
+```matlab
+>> jlcall
+
+ERROR: Unable to load dependent library ~/.local/julia-1.6.1/bin/../lib/julia/libjulia-internal.so.1
+
+Message: /usr/local/MATLAB/R2015b/sys/os/glnxa64/libstdc++.so.6: version `GLIBCXX_3.4.20' not found (required by ~/.local/julia-1.6.1/bin/../lib/julia/libjulia-internal.so.1)
+```
+
+This error results due to a clash of supported `libstdc++` versions, and does not occur when using e.g. Julia v1.5.4 with MATLAB R2015b, or Julia v1.6.1 with MATLAB R2020b.
+
+If you encounter this issue, see the [`Julia`](https://github.com/JuliaLang/julia/blob/master/doc/build/build.md#required-build-tools-and-external-libraries) and [`MATLAB`](https://www.mathworks.com/support/requirements/supported-compilers.html) documentation for information on mutually supported external libraries.
 
 ## About this package
 

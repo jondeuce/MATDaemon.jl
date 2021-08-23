@@ -21,6 +21,10 @@ function opts = parse_inputs(varargin)
 
     p = inputParser;
 
+    % `maxNumCompThreads` had a deprecation warning in MATLAB R2015B,
+    % but is no longer deprecated; silence the warning for old versions.
+    warning('off', 'MATLAB:maxNumCompThreads:Deprecated')
+
     addOptional(p, 'f', '(args...; kwargs...) -> nothing', @ischar);
     addOptional(p, 'args', {}, @iscell);
     addOptional(p, 'kwargs', struct, @isstruct);
@@ -266,8 +270,7 @@ function tmp = workspace_tempname(opts)
         filecount = mod(filecount + 1, 10000);
     end
 
-    prefix = pad(num2str(filecount), 4, 'left', '0');
-    tmp = fullfile(dirname, [prefix, '_mat_', filename]);
+    tmp = fullfile(dirname, [pad_num(filecount), '_mat_', filename]);
 
 end
 
@@ -303,5 +306,15 @@ function str = jl_maybe_stdout(bool)
     else
         str = 'devnull';
     end
+
+end
+
+function str = pad_num(s)
+
+    if ~ischar(s)
+        s = num2str(s);
+    end
+
+    str = [repmat('0', 1, max(4 - numel(s), 0)), s];
 
 end
