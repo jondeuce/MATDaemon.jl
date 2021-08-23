@@ -1,7 +1,5 @@
 """
-    JuliaFromMATLAB
-
-Utilities module for calling Julia from MATLAB.
+$(README)
 """
 module JuliaFromMATLAB
 
@@ -10,6 +8,8 @@ import MAT
 import MacroTools
 import Pkg
 
+using DocStringExtensions
+
 # Input/output filenames for communication with MATLAB
 const JL_INPUT = "jl_input.mat"
 const JL_OUTPUT = "jl_output.mat"
@@ -17,7 +17,7 @@ const JL_OUTPUT = "jl_output.mat"
 """
     matlabify(x)
 
-Convert Julia value `x` to equivalent MATLAB representation
+Convert Julia value `x` to equivalent MATLAB representation.
 """
 matlabify(x) = x # default
 matlabify(::Nothing) = zeros(Float64, 0, 0) # represent `Nothing` as MATLAB's `[]`
@@ -36,33 +36,54 @@ matlabify_output(x::Tuple) = Any[map(matlabify, x)...]
 juliafy_kwargs(xs) = Pair{Symbol, Any}[Symbol(k) => v for (k, v) in xs]
 
 """
-    JLCallOptions
+    JLCallOptions(; kwargs...)
 
-Julia struct for storing jlcall.m input parser results
+Julia struct for storing [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m) input parser results.
+
+
+Struct fields/keyword arguments for constructor:
+
+$(TYPEDFIELDS)
 """
 Base.@kwdef struct JLCallOptions
+    "User function to be parsed and evaluated"
     f::String                 = "(args...; kwargs...) -> nothing"
+    "Positional arguments"
     args::Vector{Any}         = Any[]
+    "Keyword arguments"
     kwargs::Dict{String, Any} = Dict{String, Any}()
+    "Julia runtime binary location"
     runtime::String           = abspath(Base.Sys.BINDIR, "julia")
+    "Julia project to add to LOAD_PATH"
     project::String           = ""
+    "Number of threads to start Julia with"
     threads::Int              = Base.Threads.nthreads()
+    "Julia setup script to include before defining and calling the user function"
     setup::String             = ""
+    "Julia modules to import before defining and calling the user function"
     modules::Vector{Any}      = Any[]
+    "Current working directory. Change path to this directory before loading code"
     cwd::String               = pwd()
+    "JuliaFromMATLAB workspace. Local Julia project and temporary files for communication with MATLAB are stored here"
     workspace::String         = mktempdir(; prefix = ".jlcall_", cleanup = true)
+    "Start Julia instance on a local server using `DaemonMode.jl`"
     server::Bool              = true
+    "Port to start Julia server on"
     port::Int                 = 3000
+    "Julia code is loaded into a persistent server environment if true. Otherwise, load code in unique namespace"
     shared::Bool              = true
+    "Restart the Julia server before loading code"
     restart::Bool             = false
+    "Garbage collect temporary files after each call"
     gc::Bool                  = true
+    "Print debugging information"
     debug::Bool               = false
 end
 
 matlabify(opts::JLCallOptions) = Dict{String, Any}(string(k) => matlabify(getproperty(opts, k)) for k in fieldnames(JLCallOptions))
 
 """
-    start(port::Int; shared::Bool, verbose::Bool = false)
+    $(TYPEDSIGNATURES)
 
 Start Julia server.
 """
@@ -73,7 +94,7 @@ function start(port::Int; shared::Bool, verbose::Bool = false)
 end
 
 """
-    kill(port::Int; verbose::Bool = false)
+    $(TYPEDSIGNATURES)
 
 Kill Julia server. If server is already killed, do nothing.
 """
@@ -95,9 +116,9 @@ function kill(port::Int; verbose::Bool = false)
 end
 
 """
-    load_options(workspace::String)
+    $(TYPEDSIGNATURES)
 
-Load jlcall.m input parser results from `workspace`
+Load [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m) input parser results from `workspace`.
 """
 function load_options(workspace::String)
     maybevec(x) = x isa AbstractArray ? vec(x) : x
@@ -107,9 +128,9 @@ function load_options(workspace::String)
 end
 
 """
-    init_environment(opts::JLCallOptions)
+    $(TYPEDSIGNATURES)
 
-Initialize jlcall environment.
+Initialize [`jlcall`](@ref) environment.
 """
 function init_environment(opts::JLCallOptions)
     # Change to current MATLAB working directory
@@ -129,9 +150,9 @@ function init_environment(opts::JLCallOptions)
 end
 
 """
-    save_output(output, opts::JLCallOptions)
+    $(TYPEDSIGNATURES)
 
-Save jlcall output results into workspace
+Save [`jlcall`](@ref) output results into workspace.
 """
 function save_output(output, opts::JLCallOptions)
     # Save outputs to workspace
@@ -149,9 +170,9 @@ function save_output(output, opts::JLCallOptions)
 end
 
 """
-    jlcall(f, opts::JLCallOptions)
+    $(TYPEDSIGNATURES)
 
-Run Julia function `f` using jlcall.m input parser results `opts`.
+Run Julia function `f` using [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m) input parser results `opts`.
 """
 function jlcall(f::F, opts::JLCallOptions) where {F}
     # Since `f` is dynamically defined in a global scope, try to force specialization on `f` (may help performance)
@@ -160,9 +181,9 @@ function jlcall(f::F, opts::JLCallOptions) where {F}
 end
 
 """
-    jlcall_script()
+    $(TYPEDSIGNATURES)
 
-Location of script for loading code, importing modules, and evaluating the function expression passed from jlcall.m.
+Location of script for loading code, importing modules, and evaluating the function expression passed from [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m).
 """
 jlcall_script() = joinpath(@__DIR__, "..", "api", "jlcall.jl")
 

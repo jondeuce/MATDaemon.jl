@@ -1,9 +1,9 @@
 # JuliaFromMATLAB.jl
 
-## API Reference
+```@index
+Modules = [JuliaFromMATLAB]
+```
 
-- [`JuliaFromMATLAB`](@ref)
-
-```@docs
-JuliaFromMATLAB
+```@autodocs
+Modules = [JuliaFromMATLAB]
 ```
