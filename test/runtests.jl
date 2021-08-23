@@ -1,6 +1,6 @@
 using Test
 using JuliaFromMATLAB
-using JuliaFromMATLAB: JLCallOptions, @jlcall, matlabify
+using JuliaFromMATLAB: JLCallOptions, matlabify
 
 using Distributed
 using GarishPrint

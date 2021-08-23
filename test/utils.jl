@@ -6,16 +6,17 @@ mxempty() = zeros(Float64, 0, 0)
 
 #### Temporary workspace
 
-const TEMP_WORKSPACE = mktempdir(; prefix = ".jlcall_", cleanup = true)
+ENV["JULIA_FROM_MATLAB_WORKSPACE"] = mktempdir(; prefix = ".jlcall_", cleanup = true)
 
 function initialize_workspace()
-    if !isfile(joinpath(TEMP_WORKSPACE, "Project.toml"))
+    workspace = ENV["JULIA_FROM_MATLAB_WORKSPACE"]
+    if !isfile(joinpath(workspace, "Project.toml"))
         curr = Base.active_project()
-        Pkg.activate(TEMP_WORKSPACE)
+        Pkg.activate(workspace)
         Pkg.develop(PackageSpec(path = realpath(joinpath(@__DIR__, ".."))); io = devnull)
         Pkg.activate(curr)
     end
-    return TEMP_WORKSPACE
+    return workspace
 end
 
 #### Recursive, typed equality testing
@@ -43,7 +44,7 @@ function pprint_compare(args::NamedTuple)
     return false
 end
 
-#### Convenience method for calling + testing @jlcall
+#### Convenience method for calling and testing jlcall
 
 function wrap_jlcall(f, f_args, f_kwargs, f_output; kwargs...)
     opts = JLCallOptions(;
@@ -61,7 +62,7 @@ function wrap_jlcall(f, f_args, f_kwargs, f_output; kwargs...)
     @test isfile(input_file)
     @test is_eq(opts, JuliaFromMATLAB.load_options(opts.workspace))
 
-    @eval Main @jlcall($(opts.workspace))
+    Main.include(JuliaFromMATLAB.jlcall_script())
 
     @test isfile(output_file)
     @test is_eq(f_output, MAT.matread(output_file)["output"])

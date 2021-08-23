@@ -149,7 +149,7 @@ function save_output(output, opts::JLCallOptions)
 end
 
 """
-    jlcall(f::F, opts::JLCallOptions)
+    jlcall(f, opts::JLCallOptions)
 
 Run Julia function `f` using jlcall.m input parser results `opts`.
 """
@@ -160,58 +160,10 @@ function jlcall(f::F, opts::JLCallOptions) where {F}
 end
 
 """
-    @jlcall workspace::String
+    jlcall_script()
 
-Dynamically include code, import modules, and evaluate function expressions indicated by the user settings file $(JL_INPUT) located in the folder `workspace`.
-
-This macro should be evaluated at the top level of the module in which the above symbols should be defined.
+Location of script for loading code, importing modules, and evaluating the function expression passed from jlcall.m.
 """
-macro jlcall(workspace)
-    esc(quote
-        # Input is workspace directory containing jlcall.m input parser results
-        local opts = $(load_options)($(workspace))
-
-        # Initialize load path etc.
-        $(init_environment)(opts)
-
-        # Print environment for debugging
-        if opts.debug
-            println("* Environment for evaluating Julia expression:")
-            println("*   Working dir: $(pwd())")
-            println("*   Module: $(@__MODULE__)")
-            println("*   Load path: $(LOAD_PATH)\n")
-        end
-
-        # JuliaFromMATLAB is always imported
-        import JuliaFromMATLAB
-
-        # Include setup code
-        if !isempty(opts.setup)
-            $(__module__).include(abspath(opts.setup))
-        end
-
-        # Load modules from strings; will fail if not installed
-        for mod_str in opts.modules
-            local mod = Meta.parse(mod_str)
-            Core.eval($(__module__), :(import $(mod)))
-        end
-
-        # Parse and evaluate `f` from string
-        local f_expr = :(let; $(Meta.parse(opts.f)); end)
-
-        if opts.debug
-            println("* Generated Julia function expression: ")
-            println(string($(MacroTools.prettify)(f_expr)), "\n")
-        end
-
-        local f = Core.eval($(__module__), f_expr)
-
-        # Call `f` using MATLAB input arguments
-        local output = $(jlcall)(f, opts)
-
-        # Save results to workspace
-        $(save_output)(output, opts)
-    end)
-end
+jlcall_script() = joinpath(@__DIR__, "..", "api", "jlcall.jl")
 
 end # module JuliaFromMATLAB

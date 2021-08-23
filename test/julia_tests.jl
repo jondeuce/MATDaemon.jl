@@ -119,7 +119,7 @@ end
     end
 
     # This should fail, as Base.VERSION has type VersionNumber and therefore cannot be written to .mat
-    @test_throws ErrorException wrap_jlcall("@eval Main f10() = Base.VERSION", mxtuple(), mxdict(), mxtuple(string(Base.VERSION)))
+    @test_throws LoadError wrap_jlcall("@eval Main f10() = Base.VERSION", mxtuple(), mxdict(), mxtuple(string(Base.VERSION)))
     @test isdefined(Main, :f10)
 
     # Fix `f10` by extending `matlabify` to `VersionNumber`s
