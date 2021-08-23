@@ -208,7 +208,7 @@ function try_run(opts, script, mode, msg)
     % Set Julia environment variables
     setenv('JULIA_NUM_THREADS', num2str(opts.threads));
     setenv('JULIA_PROJECT', opts.workspace);
-    setenv('JULIA_FROM_MATLAB_WORKSPACE', opts.workspace);
+    setenv('JULIAFROMMATLAB_WORKSPACE', opts.workspace);
 
     % Set Julia binary path and flags
     switch mode

@@ -6,10 +6,10 @@ mxempty() = zeros(Float64, 0, 0)
 
 #### Temporary workspace
 
-ENV["JULIA_FROM_MATLAB_WORKSPACE"] = mktempdir(; prefix = ".jlcall_", cleanup = true)
+ENV["JULIAFROMMATLAB_WORKSPACE"] = mktempdir(; prefix = ".jlcall_", cleanup = true)
 
 function initialize_workspace()
-    workspace = ENV["JULIA_FROM_MATLAB_WORKSPACE"]
+    workspace = ENV["JULIAFROMMATLAB_WORKSPACE"]
     if !isfile(joinpath(workspace, "Project.toml"))
         curr = Base.active_project()
         Pkg.activate(workspace)
