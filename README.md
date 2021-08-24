@@ -208,7 +208,11 @@ ans =
 ### Performance
 
 MATLAB inputs and Julia ouputs are passed back and forth between MATLAB and the `DaemonMode.jl` server by writing to temporary `.mat` files.
-This naturally leads to some overhead when calling Julia, particularly when the MATLAB inputs and/or Julia outputs have large memory footprints.
+The location of these files can be configured with the `'infile'` and `'outfile'` flags, respectively.
+Pointing these files to a ram-backed file system is recommended when possible (for example, the `/tmp` folder on Linux is usually ram-backed), as read/write speed will likely improve.
+This is now the default; `'infile'` and `'outfile'` are created via the MATLAB `tempname` function (thanks to @mauro3 for this tip).
+
+Nevertheless, this naturally leads to some overhead when calling Julia, particularly when the MATLAB inputs and/or Julia outputs have large memory footprints.
 It is therefore not recommended to use [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m) in performance critical loops.
 
 ## MATLAB and Julia version compatibility

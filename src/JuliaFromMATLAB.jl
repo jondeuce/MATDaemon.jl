@@ -11,8 +11,7 @@ import Pkg
 using DocStringExtensions
 
 # Input/output filenames for communication with MATLAB
-const JL_INPUT = "jl_input.mat"
-const JL_OUTPUT = "jl_output.mat"
+const JL_OPTIONS = "jlcall_opts.mat"
 
 """
     matlabify(x)
@@ -33,7 +32,8 @@ matlabify_output(x) = Any[matlabify(x)] # default
 matlabify_output(::Nothing) = Any[]
 matlabify_output(x::Tuple) = Any[map(matlabify, x)...]
 
-juliafy_kwargs(xs) = Pair{Symbol, Any}[Symbol(k) => v for (k, v) in xs]
+juliafy_args(xs::Array{Any}) = vec(xs)
+juliafy_kwargs(xs::Dict{String, Any}) = Pair{Symbol, Any}[Symbol(k) => v for (k, v) in xs]
 
 """
     JLCallOptions(; kwargs...)
@@ -48,10 +48,10 @@ $(TYPEDFIELDS)
 Base.@kwdef struct JLCallOptions
     "User function to be parsed and evaluated"
     f::String                 = "(args...; kwargs...) -> nothing"
-    "Positional arguments"
-    args::Vector{Any}         = Any[]
-    "Keyword arguments"
-    kwargs::Dict{String, Any} = Dict{String, Any}()
+    "MATLAB `.mat` file containing positional and keyword arguments for calling `f`"
+    infile::String            = tempname() * ".mat"
+    "MATLAB `.mat` file for writing outputs of `f` into"
+    outfile::String           = tempname() * ".mat"
     "Julia runtime binary location"
     runtime::String           = abspath(Base.Sys.BINDIR, "julia")
     "Julia project to add to LOAD_PATH"
@@ -122,9 +122,10 @@ Load [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api
 """
 function load_options(workspace::String)
     maybevec(x) = x isa AbstractArray ? vec(x) : x
-    mxopts = MAT.matread(abspath(workspace, JL_INPUT))
+    mxopts = MAT.matread(abspath(workspace, JL_OPTIONS))
     kwargs = Dict{Symbol, Any}(Symbol(k) => maybevec(v) for (k, v) in mxopts)
-    return JLCallOptions(; kwargs..., workspace = abspath(workspace))
+    opts = JLCallOptions(; kwargs..., workspace = abspath(workspace))
+    return opts
 end
 
 """
@@ -155,14 +156,12 @@ end
 Save [`jlcall`](@ref) output results into workspace.
 """
 function save_output(output, opts::JLCallOptions)
-    # Save outputs to workspace
-    output_file = abspath(opts.workspace, JL_OUTPUT)
-
+    # Try writing output to `opts.outfile`
     try
-        MAT.matwrite(output_file, Dict{String, Any}("output" => output))
+        MAT.matwrite(opts.outfile, Dict{String, Any}("output" => output))
     catch e
-        println("* ERROR: Unable to write Julia output to .mat:\n*   ", output_file, "\n")
-        rm(output_file; force = true)
+        println("* ERROR: Unable to write Julia output to .mat:\n*   ", opts.outfile, "\n")
+        rm(opts.outfile; force = true)
         rethrow()
     end
 
@@ -176,8 +175,13 @@ Run Julia function `f` using [`jlcall.m`](https://github.com/jondeuce/JuliaFromM
 """
 function jlcall(f::F, opts::JLCallOptions) where {F}
     # Since `f` is dynamically defined in a global scope, try to force specialization on `f` (may help performance)
-    out = f(opts.args...; juliafy_kwargs(opts.kwargs)...)
-    return matlabify_output(out)
+    f_args = MAT.matread(opts.infile)
+    args = juliafy_args(f_args["args"])
+    kwargs = juliafy_kwargs(f_args["kwargs"])
+    out = f(args...; kwargs...)
+
+    # Save results to workspace
+    save_output(matlabify_output(out), opts)
 end
 
 """

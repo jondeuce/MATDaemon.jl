@@ -49,24 +49,28 @@ end
 function wrap_jlcall(f, f_args, f_kwargs, f_output; kwargs...)
     opts = JLCallOptions(;
         f         = f,
-        args      = f_args,
-        kwargs    = f_kwargs,
         workspace = initialize_workspace(),
         debug     = true,
         kwargs...,
     )
-    input_file = joinpath(opts.workspace, JuliaFromMATLAB.JL_INPUT)
-    output_file = joinpath(opts.workspace, JuliaFromMATLAB.JL_OUTPUT)
+    optsfile = joinpath(opts.workspace, JuliaFromMATLAB.JL_OPTIONS)
 
-    MAT.matwrite(input_file, matlabify(opts))
-    @test isfile(input_file)
-    @test is_eq(opts, JuliaFromMATLAB.load_options(opts.workspace))
+    try
+        f_args_dict = Dict(:args => f_args, :kwargs => f_kwargs)
+        MAT.matwrite(opts.infile, matlabify(f_args_dict))
+        MAT.matwrite(optsfile, matlabify(opts))
 
-    Main.include(JuliaFromMATLAB.jlcall_script())
+        @test isfile(opts.infile)
+        @test isfile(optsfile)
+        @test is_eq(opts, JuliaFromMATLAB.load_options(opts.workspace))
 
-    @test isfile(output_file)
-    @test is_eq(f_output, MAT.matread(output_file)["output"])
+        Main.include(JuliaFromMATLAB.jlcall_script())
 
-    rm(input_file; force = true)
-    rm(output_file; force = true)
+        @test isfile(opts.outfile)
+        @test is_eq(f_output, MAT.matread(opts.outfile)["output"])
+    finally
+        rm(optsfile; force = true)
+        rm(opts.infile; force = true)
+        rm(opts.outfile; force = true)
+    end
 end

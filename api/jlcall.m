@@ -2,7 +2,7 @@ function varargout = jlcall(varargin)
 %JLCALL Call Julia from MATLAB.
 
     % Parse inputs
-    opts = parse_inputs(varargin{:});
+    [f_args, opts] = parse_inputs(varargin{:});
 
     % Initialize workspace for communicating between MATLAB and Julia
     init_workspace(opts);
@@ -13,11 +13,11 @@ function varargout = jlcall(varargin)
     end
 
     % Call Julia
-    varargout = call_julia(opts);
+    varargout = call_julia(f_args, opts);
 
 end
 
-function opts = parse_inputs(varargin)
+function [f_args, opts] = parse_inputs(varargin)
 
     p = inputParser;
 
@@ -28,6 +28,8 @@ function opts = parse_inputs(varargin)
     addOptional(p, 'f', '(args...; kwargs...) -> nothing', @ischar);
     addOptional(p, 'args', {}, @iscell);
     addOptional(p, 'kwargs', struct, @isstruct);
+    addParameter(p, 'infile', [tempname, '.mat'], @ischar);
+    addParameter(p, 'outfile', [tempname, '.mat'], @ischar);
     addParameter(p, 'runtime', try_find_julia_runtime, @ischar);
     addParameter(p, 'project', '', @ischar);
     addParameter(p, 'threads', maxNumCompThreads, @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
@@ -44,6 +46,11 @@ function opts = parse_inputs(varargin)
 
     parse(p, varargin{:});
     opts = p.Results;
+
+    % Split Julia `f` args and kwargs out from options
+    f_args(1).args = opts.args;
+    f_args(1).kwargs = opts.kwargs;
+    opts = rmfield(opts, {'args', 'kwargs'});
 
 end
 
@@ -134,10 +141,13 @@ function kill_server(opts)
 
 end
 
-function output = call_julia(opts)
+function output = call_julia(f_args, opts)
 
-    % Save MATLAB inputs to .mat file in workspace folder
-    save(fullfile(opts.workspace, 'jl_input.mat'), '-struct', 'opts', '-v7.3');
+    % Save `f` arguments to `opts.infile`
+    save(opts.infile, '-struct', 'f_args', '-v7.3');
+
+    % Save input parser results to .mat file in workspace folder
+    save(fullfile(opts.workspace, 'jlcall_opts.mat'), '-struct', 'opts', '-v7.3');
 
     % Script to run from Julia
     job_script = build_julia_script(opts, 'JuliaFromMATLAB', {
@@ -158,14 +168,12 @@ function output = call_julia(opts)
     end
 
     % Load outputs from disk
-    output_file = fullfile(opts.workspace, 'jl_output.mat');
-
-    if exist(output_file, 'file')
-        output = load(output_file);
+    if exist(opts.outfile, 'file')
+        output = load(opts.outfile);
         output = output.output;
     else
         % Throw error before garbage collecting below so that workspace folder can be inspected
-        e.message = sprintf('Julia call failed to produce the expected output file:\n%s', output_file);
+        e.message = sprintf('Julia call failed to produce the expected output file:\n%s', opts.outfile);
         e.identifier = 'jlcall:fileNotFound';
         error(e)
     end
@@ -276,7 +284,8 @@ end
 
 function collect_garbage(opts)
 
-    % Recursively delete workspace folder and contents
+    delete(opts.infile);
+    delete(opts.outfile);
     delete(fullfile(opts.workspace, 'tmp', '*'));
     delete(fullfile(opts.workspace, '*.mat'));
 

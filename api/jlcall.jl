@@ -1,10 +1,10 @@
 # Dynamically include setup code, import modules, and finally evaluate the function expression passed by the user.
-# User settings are loaded from the input file `JuliaFromMATLAB.JL_INPUT` located in the jlcall.m workspace folder.
+# User settings are loaded from the input file `JuliaFromMATLAB.JL_OPTIONS` located in the jlcall.m workspace folder.
 # The workspace folder is passed using the environment variable `JULIAFROMMATLAB_WORKSPACE`.
 
 let
     # Load jlcall.m input parser results from workspace
-    local workspace = get(ENV, "JULIAFROMMATLAB_WORKSPACE", abspath(".jlcall"))
+    local workspace = ENV["JULIAFROMMATLAB_WORKSPACE"]
     local opts = JuliaFromMATLAB.load_options(workspace)
 
     # Initialize load path etc.
@@ -41,9 +41,7 @@ let
 
     local f = @eval $(f_expr)
 
-    # Call `f` using MATLAB input arguments
+    # Call `f`, loading MATLAB input arguments from `opts.infile`
+    # and saving Julia outputs to `opts.outfile`
     local output = JuliaFromMATLAB.jlcall(f, opts)
-
-    # Save results to workspace
-    JuliaFromMATLAB.save_output(output, opts)
 end
