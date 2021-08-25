@@ -34,6 +34,7 @@ function [f_args, opts] = parse_inputs(varargin)
     addParameter(p, 'project', '', @ischar);
     addParameter(p, 'threads', maxNumCompThreads, @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
     addParameter(p, 'setup', '', @ischar);
+    addParameter(p, 'nofun', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'modules', {}, @iscell);
     addParameter(p, 'cwd', pwd, @ischar);
     addParameter(p, 'workspace', relative_path('.jlcall'), @ischar);

@@ -6,11 +6,10 @@ module JuliaFromMATLAB
 import DaemonMode
 import MAT
 import MacroTools
-import Pkg
 
 using DocStringExtensions
 
-# Input/output filenames for communication with MATLAB
+# Options file for communicating with MATLAB
 const JL_OPTIONS = "jlcall_opts.mat"
 
 """
@@ -40,7 +39,6 @@ juliafy_kwargs(xs::Dict{String, Any}) = Pair{Symbol, Any}[Symbol(k) => v for (k,
 
 Julia struct for storing [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m) input parser results.
 
-
 Struct fields/keyword arguments for constructor:
 
 $(TYPEDFIELDS)
@@ -60,6 +58,8 @@ Base.@kwdef struct JLCallOptions
     threads::Int              = Base.Threads.nthreads()
     "Julia setup script to include before defining and calling the user function"
     setup::String             = ""
+    "Treat `f` as a generic Julia expression, not a function: evaluate `f` and return `nothing`"
+    nofun::Bool               = false
     "Julia modules to import before defining and calling the user function"
     modules::Vector{Any}      = Any[]
     "Current working directory. Change path to this directory before loading code"
