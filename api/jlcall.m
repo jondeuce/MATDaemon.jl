@@ -284,8 +284,8 @@ end
 
 function collect_garbage(opts)
 
-    delete(opts.infile);
-    delete(opts.outfile);
+    if exist(opts.infile, 'file'); delete(opts.infile); end
+    if exist(opts.outfile, 'file'); delete(opts.outfile); end
     delete(fullfile(opts.workspace, 'tmp', '*'));
     delete(fullfile(opts.workspace, '*.mat'));
 
