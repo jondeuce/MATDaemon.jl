@@ -2,6 +2,9 @@
 # User settings are loaded from the input file `JuliaFromMATLAB.JL_OPTIONS` located in the jlcall.m workspace folder.
 # The workspace folder is passed using the environment variable `JULIAFROMMATLAB_WORKSPACE`.
 
+# JuliaFromMATLAB must be imported
+import JuliaFromMATLAB
+
 let
     # Load jlcall.m input parser results from workspace
     local workspace = ENV["JULIAFROMMATLAB_WORKSPACE"]
@@ -18,9 +21,6 @@ let
         println("*   Load path: $(LOAD_PATH)\n")
     end
 
-    # JuliaFromMATLAB is always imported
-    import JuliaFromMATLAB
-
     # Include setup code
     if !isempty(opts.setup)
         include(abspath(opts.setup))
@@ -33,6 +33,11 @@ let
 
     # Parse and evaluate `f` from string
     local f_expr = :(let; $(Meta.parse(opts.f)); end)
+
+    # If not a function call, return a thunk
+    if opts.nofun
+        f_expr = :(let; $(f_expr); (args...; kwargs...) -> nothing; end)
+    end
 
     if opts.debug
         println("* Generated Julia function expression: ")
