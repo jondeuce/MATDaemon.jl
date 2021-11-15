@@ -1,11 +1,11 @@
-# JuliaFromMATLAB.jl
+# MATDaemon.jl
 
 ## Index
 
 ```@index
-Modules = [JuliaFromMATLAB]
+Modules = [MATDaemon]
 ```
 
 ```@autodocs
-Modules = [JuliaFromMATLAB]
+Modules = [MATDaemon]
 ```

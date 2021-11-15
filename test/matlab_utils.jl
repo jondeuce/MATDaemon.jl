@@ -16,7 +16,7 @@ function mx_wrap_jlcall(
         port      = 5678,
         kwargs...,
     )
-    optsfile = joinpath(opts.workspace, JuliaFromMATLAB.JL_OPTIONS)
+    optsfile = joinpath(opts.workspace, MATDaemon.JL_OPTIONS)
 
     mxargs = Any[
         opts.f,

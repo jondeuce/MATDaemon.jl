@@ -1,13 +1,13 @@
 push!(LOAD_PATH, joinpath(@__DIR__))
 push!(LOAD_PATH, joinpath(@__DIR__, ".."))
-using Documenter, JuliaFromMATLAB
+using Documenter, MATDaemon
 
 makedocs(;
-    modules = [JuliaFromMATLAB],
+    modules = [MATDaemon],
     format = Documenter.HTML(
         prettyurls = get(ENV, "CI", nothing) == "true",
     ),
-    sitename = "JuliaFromMATLAB.jl",
+    sitename = "MATDaemon.jl",
     authors = "Jonathan Doucette",
     pages = [
         "Home" => "index.md",
@@ -15,7 +15,7 @@ makedocs(;
 )
 
 deploydocs(;
-    repo = "github.com/jondeuce/JuliaFromMATLAB.jl.git",
+    repo = "github.com/jondeuce/MATDaemon.jl.git",
     push_preview = true,
     deploy_config = Documenter.GitHubActions(),
 )

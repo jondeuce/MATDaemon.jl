@@ -1,17 +1,17 @@
 # Dynamically include setup code, import modules, and finally evaluate the function expression passed by the user.
-# User settings are loaded from the input file `JuliaFromMATLAB.JL_OPTIONS` located in the jlcall.m workspace folder.
-# The workspace folder is passed using the environment variable `JULIAFROMMATLAB_WORKSPACE`.
+# User settings are loaded from the input file `MATDaemon.JL_OPTIONS` located in the jlcall.m workspace folder.
+# The workspace folder is passed using the environment variable `MATDAEMON_WORKSPACE`.
 
-# JuliaFromMATLAB must be imported
-import JuliaFromMATLAB
+# MATDaemon must be imported
+import MATDaemon
 
 let
     # Load jlcall.m input parser results from workspace
-    local workspace = ENV["JULIAFROMMATLAB_WORKSPACE"]
-    local opts = JuliaFromMATLAB.load_options(workspace)
+    local workspace = ENV["MATDAEMON_WORKSPACE"]
+    local opts = MATDaemon.load_options(workspace)
 
     # Initialize load path etc.
-    JuliaFromMATLAB.init_environment(opts)
+    MATDaemon.init_environment(opts)
 
     # Print environment for debugging
     if opts.debug
@@ -41,12 +41,12 @@ let
 
     if opts.debug
         println("* Generated Julia function expression: ")
-        println(string(JuliaFromMATLAB.MacroTools.prettify(f_expr)), "\n")
+        println(string(MATDaemon.MacroTools.prettify(f_expr)), "\n")
     end
 
     local f = @eval $(f_expr)
 
     # Call `f`, loading MATLAB input arguments from `opts.infile`
     # and saving Julia outputs to `opts.outfile`
-    local output = JuliaFromMATLAB.jlcall(f, opts)
+    local output = MATDaemon.jlcall(f, opts)
 end

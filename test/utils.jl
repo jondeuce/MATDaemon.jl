@@ -6,10 +6,10 @@ mxempty() = zeros(Float64, 0, 0)
 
 #### Temporary workspace
 
-ENV["JULIAFROMMATLAB_WORKSPACE"] = mktempdir(; prefix = ".jlcall_", cleanup = true)
+ENV["MATDAEMON_WORKSPACE"] = mktempdir(; prefix = ".jlcall_", cleanup = true)
 
 function initialize_workspace()
-    workspace = ENV["JULIAFROMMATLAB_WORKSPACE"]
+    workspace = ENV["MATDAEMON_WORKSPACE"]
     if !isfile(joinpath(workspace, "Project.toml"))
         curr = Base.active_project()
         Pkg.activate(workspace)
@@ -53,7 +53,7 @@ function wrap_jlcall(f, f_args, f_kwargs, f_output; kwargs...)
         debug     = true,
         kwargs...,
     )
-    optsfile = joinpath(opts.workspace, JuliaFromMATLAB.JL_OPTIONS)
+    optsfile = joinpath(opts.workspace, MATDaemon.JL_OPTIONS)
 
     try
         f_args_dict = Dict(:args => f_args, :kwargs => f_kwargs)
@@ -62,9 +62,9 @@ function wrap_jlcall(f, f_args, f_kwargs, f_output; kwargs...)
 
         @test isfile(opts.infile)
         @test isfile(optsfile)
-        @test is_eq(opts, JuliaFromMATLAB.load_options(opts.workspace))
+        @test is_eq(opts, MATDaemon.load_options(opts.workspace))
 
-        Main.include(JuliaFromMATLAB.jlcall_script())
+        Main.include(MATDaemon.jlcall_script())
 
         @test isfile(opts.outfile)
         @test is_eq(f_output, MAT.matread(opts.outfile)["output"])

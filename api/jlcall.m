@@ -65,13 +65,13 @@ function init_workspace(opts)
     % Ignored outputs are needed to mute "folder exists" warning
     [~, ~] = mkdir(opts.workspace);
 
-    % Install JuliaFromMATLAB into workspace
+    % Install MATDaemon into workspace
     install_script = build_julia_script(opts, 'Pkg', {
-        'println("* Installing JuliaFromMATLAB...\n")'
-        sprintf('Pkg.add(Pkg.PackageSpec(url = "https://github.com/jondeuce/JuliaFromMATLAB.jl", rev = "master"); io = %s)', jl_maybe_stdout(opts.debug))
+        'println("* Installing MATDaemon...\n")'
+        sprintf('Pkg.add(Pkg.PackageSpec(url = "https://github.com/jondeuce/MATDaemon.jl", rev = "master"); io = %s)', jl_maybe_stdout(opts.debug))
     });
 
-    try_run(opts, install_script, 'client', 'Running `JuliaFromMATLAB` install script');
+    try_run(opts, install_script, 'client', 'Running `MATDaemon` install script');
 
 end
 
@@ -92,11 +92,11 @@ function start_server(opts)
         end
 
         % If shared is false, each Julia server call is executed in it's own Module to avoid namespace collisions, etc.
-        start_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-            sprintf('JuliaFromMATLAB.start(%d; shared = %s, verbose = %s)', opts.port, jl_bool(opts.shared), jl_bool(opts.debug))
+        start_script = build_julia_script(opts, 'MATDaemon', {
+            sprintf('MATDaemon.start(%d; shared = %s, verbose = %s)', opts.port, jl_bool(opts.shared), jl_bool(opts.debug))
         });
 
-        try_run(opts, start_script, 'server', 'Running `JuliaFromMATLAB.start` script from Julia server');
+        try_run(opts, start_script, 'server', 'Running `MATDaemon.start` script from Julia server');
 
         % Wait for server pong
         while ~ping_server(opts)
@@ -130,8 +130,8 @@ function kill_server(opts)
         fprintf('* Killing Julia server\n\n');
     end
 
-    kill_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        sprintf('JuliaFromMATLAB.kill(%d; verbose = %s)', opts.port, jl_bool(opts.debug))
+    kill_script = build_julia_script(opts, 'MATDaemon', {
+        sprintf('MATDaemon.kill(%d; verbose = %s)', opts.port, jl_bool(opts.debug))
     });
 
     try_run(opts, kill_script, 'client', 'Sending kill script to Julia server');
@@ -151,21 +151,21 @@ function output = call_julia(f_args, opts)
     save(fullfile(opts.workspace, 'jlcall_opts.mat'), '-struct', 'opts', '-v7.3');
 
     % Script to run from Julia
-    job_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-        'include(JuliaFromMATLAB.jlcall_script())'
+    job_script = build_julia_script(opts, 'MATDaemon', {
+        'include(MATDaemon.jlcall_script())'
     });
 
     if opts.server
         % Script to call the Julia server
-        server_script = build_julia_script(opts, 'JuliaFromMATLAB', {
-            sprintf('JuliaFromMATLAB.DaemonMode.runfile(raw"%s"; port = %d)', job_script, opts.port)
+        server_script = build_julia_script(opts, 'MATDaemon', {
+            sprintf('MATDaemon.DaemonMode.runfile(raw"%s"; port = %d)', job_script, opts.port)
         });
 
         % Call out to Julia server
         try_run(opts, server_script, 'client', 'Sending `DaemonMode.runfile` script to Julia server');
     else
         % Call out to local Julia process
-        try_run(opts, job_script, 'local', 'Calling `JuliaFromMATLAB.jlcall` from local Julia process');
+        try_run(opts, job_script, 'local', 'Calling `MATDaemon.jlcall` from local Julia process');
     end
 
     % Load outputs from disk
@@ -217,7 +217,7 @@ function try_run(opts, script, mode, msg)
     % Set Julia environment variables
     setenv('JULIA_NUM_THREADS', num2str(opts.threads));
     setenv('JULIA_PROJECT', opts.workspace);
-    setenv('JULIAFROMMATLAB_WORKSPACE', opts.workspace);
+    setenv('MATDAEMON_WORKSPACE', opts.workspace);
 
     % Set Julia binary path and flags
     switch mode

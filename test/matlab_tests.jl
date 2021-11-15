@@ -47,11 +47,11 @@
         ]
             kwargs = deepcopy(jl)
             ret = deepcopy(mx)
-            @test is_eq(mx_wrap_jlcall(1, "(args...; kwargs...) -> JuliaFromMATLAB.matlabify(kwargs)", (), kwargs; modules = ["JuliaFromMATLAB"]), ret)
+            @test is_eq(mx_wrap_jlcall(1, "(args...; kwargs...) -> MATDaemon.matlabify(kwargs)", (), kwargs; modules = ["MATDaemon"]), ret)
 
             args = deepcopy(values(jl))
             ret = deepcopy(Any[mx[string(k)] for k in keys(jl)])
-            @test is_eq(mx_wrap_jlcall(1, "(args...; kwargs...) -> JuliaFromMATLAB.matlabify(args)", args; modules = ["JuliaFromMATLAB"]), ret)
+            @test is_eq(mx_wrap_jlcall(1, "(args...; kwargs...) -> MATDaemon.matlabify(args)", args; modules = ["MATDaemon"]), ret)
         end
     end
 end
@@ -105,7 +105,7 @@ end
 @testset "extending matlabify" begin
     setup_script = tempname() * ".jl"
     open(setup_script; write = true) do io
-        println(io, "JuliaFromMATLAB.matlabify(v::Base.VersionNumber) = string(v)")
+        println(io, "MATDaemon.matlabify(v::Base.VersionNumber) = string(v)")
     end
     # Note: restart = true is important, as it tests the ability to call dynamically defined `matlabify` methods
     @test is_eq(mx_wrap_jlcall(1, "() -> Base.VERSION"; restart = true, setup = setup_script), string(Base.VERSION))

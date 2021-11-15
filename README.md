@@ -1,14 +1,14 @@
-# JuliaFromMATLAB
+# MATDaemon
 
-[![dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://jondeuce.github.io/JuliaFromMATLAB.jl/dev)
-[![build status](https://github.com/jondeuce/JuliaFromMATLAB.jl/workflows/CI/badge.svg)](https://github.com/jondeuce/JuliaFromMATLAB.jl/actions?query=workflow%3ACI)
-[![codecov.io](https://codecov.io/github/jondeuce/JuliaFromMATLAB.jl/branch/master/graph/badge.svg)](http://codecov.io/github/jondeuce/JuliaFromMATLAB.jl/branch/master)
+[![dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://jondeuce.github.io/MATDaemon.jl/dev)
+[![build status](https://github.com/jondeuce/MATDaemon.jl/workflows/CI/badge.svg)](https://github.com/jondeuce/MATDaemon.jl/actions?query=workflow%3ACI)
+[![codecov.io](https://codecov.io/github/jondeuce/MATDaemon.jl/branch/master/graph/badge.svg)](http://codecov.io/github/jondeuce/MATDaemon.jl/branch/master)
 
 Call Julia from MATLAB.
 
 ## Quickstart
 
-Use the MATLAB function [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m) to call Julia from MATLAB:
+Use the MATLAB function [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m) to call Julia from MATLAB:
 
 ```matlab
 >> jlcall('sort', {rand(2,5)}, struct('dims', int64(2)))
@@ -19,13 +19,13 @@ ans =
     0.0975    0.5469    0.9058    0.9134    0.9649
 ```
 
-The positional arguments passed to [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m) are:
+The positional arguments passed to [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m) are:
 1. The Julia function to call, given as a MATLAB `char` array. This can be any Julia expression which evaluates to a function. For example, `'a=2; b=3; x -> a*x+b'`. **Note:** this expression is wrapped in a `let` block and evaluated in the global scope
 2. Positional arguments, given as a MATLAB `cell` array. For example, `args = {arg1, arg2, ...}`
 3. Keyword arguments, given as a MATLAB `struct`. For example, `kwargs = struct('key1', value1, 'key2', value2, ...)`
 
-The first time [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m) is invoked:
-1. `JuliaFromMATLAB.jl` will be installed into a local Julia project, if one does not already exist. By default, a folder `.jlcall` is created in the same folder as [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m)
+The first time [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m) is invoked:
+1. `MATDaemon.jl` will be installed into a local Julia project, if one does not already exist. By default, a folder `.jlcall` is created in the same folder as [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m)
 2. A Julia server will be started in the background using [`DaemonMode.jl`](https://github.com/dmolina/DaemonMode.jl)
 
 All subsequent calls to Julia are run on the Julia server.
@@ -78,8 +78,8 @@ ans =
 
 ### Persistent environments
 
-By default, previously loaded Julia code is available on subsequent calls to [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m).
-For example, following the [above call](https://github.com/jondeuce/JuliaFromMATLAB.jl#loading-modules) to `LinearAlgebra.norm`, the `LinearAlgebra.det` function can be called without loading `LinearAlgebra` again:
+By default, previously loaded Julia code is available on subsequent calls to [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m).
+For example, following the [above call](https://github.com/jondeuce/MATDaemon.jl#loading-modules) to `LinearAlgebra.norm`, the `LinearAlgebra.det` function can be called without loading `LinearAlgebra` again:
 
 ```matlab
 >> jlcall('LinearAlgebra.det', {[1.0 2.0; 3.0 4.0]})
@@ -110,9 +110,9 @@ Stacktrace:
 
 ### Unique Julia instances
 
-Instead of running Julia code on a persistent Julia server, unique Julia instances can be launched for each call to [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m) by passing the `'server'` flag with value `false`.
+Instead of running Julia code on a persistent Julia server, unique Julia instances can be launched for each call to [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m) by passing the `'server'` flag with value `false`.
 
-**Note:** this may cause significant overhead when repeatedly calling [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m) due to Julia package precompilation and loading:
+**Note:** this may cause significant overhead when repeatedly calling [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m) due to Julia package precompilation and loading:
 
 ```matlab
 >> tic; jlcall('x -> sum(abs2, x)', {1:5}, 'server', false); toc
@@ -150,7 +150,7 @@ One possible remedy is to define a wrapper function in a Julia script:
 julia_version() = string(Base.VERSION)
 ```
 
-Then, use the `'setup'` flag to pass the above script to [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m):
+Then, use the `'setup'` flag to pass the above script to [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m):
 
 ```matlab
 >> jlcall('julia_version', 'setup', '/path/to/setup.jl')
@@ -163,12 +163,12 @@ ans =
 In this case, `jlcall('() -> string(Base.VERSION)')` would work just as well.
 In general, however, interfacing with complex Julia libraries using MATLAB types may be nontrivial, and the `'setup'` flag allows for the execution of arbitrary setup code.
 
-**Note:** the setup script is loaded into the global scope using `include`; when using [persistent environments](https://github.com/jondeuce/JuliaFromMATLAB.jl#persistent-environments), symbols defined in the setup script will be available on subsequent calls to [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m).
+**Note:** the setup script is loaded into the global scope using `include`; when using [persistent environments](https://github.com/jondeuce/MATDaemon.jl#persistent-environments), symbols defined in the setup script will be available on subsequent calls to [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m).
 
 ### Handling Julia outputs
 
 Output(s) from Julia are returned using the MATLAB `cell` array [`varargout`](https://www.mathworks.com/help/matlab/ref/varargout.html), MATLAB's variable-length list of output arguments.
-A helper function `JuliaFromMATLAB.matlabify` is used to convert Julia values into MATLAB-compatible values.
+A helper function `MATDaemon.matlabify` is used to convert Julia values into MATLAB-compatible values.
 Specifically, the following rules are used to populate `varargout` with the Julia output `y`:
 
 1. If `y::Nothing`, then `varargout = {}` and no outputs are returned to MATLAB
@@ -188,11 +188,11 @@ matlabify(xs::Union{<:AbstractDict, <:NamedTuple, <:Base.Iterators.Pairs}) = Dic
 **Note:** MATLAB `cell` and `struct` types correspond to `Array{Any}` and `Dict{String, Any}` in Julia.
 
 Conversion via `matlabify` can easily be extended to additional types.
-Returning to the example from the [above section](https://github.com/jondeuce/JuliaFromMATLAB.jl#loading-setup-code), we can define a `matlabify` method for `Base.VersionNumber`:
+Returning to the example from the [above section](https://github.com/jondeuce/MATDaemon.jl#loading-setup-code), we can define a `matlabify` method for `Base.VersionNumber`:
 
 ```julia
 # setup.jl
-JuliaFromMATLAB.matlabify(v::Base.VersionNumber) = string(v)
+MATDaemon.matlabify(v::Base.VersionNumber) = string(v)
 ```
 
 Now, the return type will be automatically converted:
@@ -213,13 +213,13 @@ Pointing these files to a ram-backed file system is recommended when possible (f
 This is now the default; `'infile'` and `'outfile'` are created via the MATLAB `tempname` function (thanks to @mauro3 for this tip).
 
 Nevertheless, this naturally leads to some overhead when calling Julia, particularly when the MATLAB inputs and/or Julia outputs have large memory footprints.
-It is therefore not recommended to use [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m) in performance critical loops.
+It is therefore not recommended to use [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m) in performance critical loops.
 
 ## MATLAB and Julia version compatibility
 
 This package has been tested on a variety of MATLAB versions.
 However, for some versions of Julia and MATLAB, supported versions of external libraries may clash.
-For example, running [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m) using Julia v1.6.1 and MATLAB R2015b gives the following error:
+For example, running [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m) using Julia v1.6.1 and MATLAB R2015b gives the following error:
 
 ```matlab
 >> jlcall
@@ -237,4 +237,4 @@ If you encounter this issue, see the [`Julia`](https://github.com/JuliaLang/juli
 
 This repository contains utilities for parsing and running Julia code, passing MATLAB arguments to Julia, and retrieving Julia outputs from MATLAB.
 
-The workhorse behind `JuliaFromMATLAB.jl` and [`jlcall.m`](https://github.com/jondeuce/JuliaFromMATLAB.jl/blob/master/api/jlcall.m) is [`DaemonMode.jl`](https://github.com/dmolina/DaemonMode.jl) which is used to start a persistent Julia server in the background.
+The workhorse behind `MATDaemon.jl` and [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m) is [`DaemonMode.jl`](https://github.com/dmolina/DaemonMode.jl) which is used to start a persistent Julia server in the background.

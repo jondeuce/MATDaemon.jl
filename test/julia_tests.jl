@@ -10,7 +10,7 @@ struct B
 end
 recurse_is_equal(eq, x::B, y::B) = recurse_is_equal(eq, x.x, y.x) && recurse_is_equal(eq, x.y, y.y)
 
-JuliaFromMATLAB.matlabify(b::B) = mxdict("x" => matlabify(b.x), "y" => matlabify(b.y))
+MATDaemon.matlabify(b::B) = mxdict("x" => matlabify(b.x), "y" => matlabify(b.y))
 
 @testset "matlabify" begin
     for (jl, mx) in [
@@ -68,22 +68,22 @@ end
     @everywhere begin
         using Pkg
         Pkg.activate($(Base.active_project()))
-        using JuliaFromMATLAB
+        using MATDaemon
     end
 
     # Start a DaemonMode server on worker 2
-    server_task = @spawnat 2 JuliaFromMATLAB.start(port; shared = true, verbose = true)
+    server_task = @spawnat 2 MATDaemon.start(port; shared = true, verbose = true)
 
     # Wait until server is running
     server_running = false
     while !server_running
-        @test JuliaFromMATLAB.DaemonMode.runexpr("@eval Main __SERVER_RUNNING__() = :SERVER_RUNNING"; port = port) === nothing
+        @test MATDaemon.DaemonMode.runexpr("@eval Main __SERVER_RUNNING__() = :SERVER_RUNNING"; port = port) === nothing
         server_running = fetch(@spawnat 2 isdefined(Main, :__SERVER_RUNNING__))
         sleep(1.0)
     end
 
     # Kill server and cleanup process
-    @test fetch(@spawnat 3 JuliaFromMATLAB.kill(port; verbose = true)) === nothing
+    @test fetch(@spawnat 3 MATDaemon.kill(port; verbose = true)) === nothing
     @test fetch(rmprocs(3)) === nothing
 
     # Ensure server task has completed and cleanup process
@@ -91,7 +91,7 @@ end
     @test fetch(rmprocs(2)) === nothing
 
     # Killing a nonexistent server should be a no-op
-    @test JuliaFromMATLAB.kill(port; verbose = true) === nothing
+    @test MATDaemon.kill(port; verbose = true) === nothing
 end
 
 @testset "jlcall" begin
@@ -123,6 +123,6 @@ end
     @test isdefined(Main, :f10)
 
     # Fix `f10` by extending `matlabify` to `VersionNumber`s
-    JuliaFromMATLAB.matlabify(v::Base.VersionNumber) = string(v)
+    MATDaemon.matlabify(v::Base.VersionNumber) = string(v)
     wrap_jlcall("Main.f10", mxtuple(), mxdict(), mxtuple(string(Base.VERSION)))
 end
