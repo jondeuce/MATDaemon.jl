@@ -1,10 +1,12 @@
-# MATDaemon
+# MATDaemon.jl
+
+*"Yes, of course duct tape works in a near-vacuum. Duct tape works anywhere. Duct tape is magic and should be worshiped." ― Andy Weir, The Martian*
 
 [![dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://jondeuce.github.io/MATDaemon.jl/dev)
 [![build status](https://github.com/jondeuce/MATDaemon.jl/workflows/CI/badge.svg)](https://github.com/jondeuce/MATDaemon.jl/actions?query=workflow%3ACI)
 [![codecov.io](https://codecov.io/github/jondeuce/MATDaemon.jl/branch/master/graph/badge.svg)](http://codecov.io/github/jondeuce/MATDaemon.jl/branch/master)
 
-Call Julia from MATLAB.
+Call Julia from MATLAB using a Julia daemon launched by [`DaemonMode.jl`](https://github.com/dmolina/DaemonMode.jl).
 
 ## Quickstart
 
