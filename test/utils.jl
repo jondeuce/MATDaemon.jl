@@ -6,9 +6,7 @@ mxempty() = zeros(Float64, 0, 0)
 
 #### Temporary workspace
 
-ENV["MATDAEMON_WORKSPACE"] = mktempdir(; prefix = ".jlcall_", cleanup = true)
-
-function initialize_workspace()
+function jlcall_workspace()
     workspace = ENV["MATDAEMON_WORKSPACE"]
     if !isfile(joinpath(workspace, "Project.toml"))
         curr = Base.active_project()
@@ -19,38 +17,124 @@ function initialize_workspace()
     return workspace
 end
 
+function jlcall_test_project()
+    testproj = joinpath(@__DIR__, "TestProject")
+    if !isfile(joinpath(testproj, "Manifest.toml"))
+        curr = Base.active_project()
+        Pkg.activate(testproj)
+        Pkg.instantiate()
+        Pkg.activate(curr)
+    end
+    return testproj
+end
+
 #### Recursive, typed equality testing
 
+const KeyValueType = Union{<:AbstractDict,<:NamedTuple,<:Base.Iterators.Pairs}
+
 recurse_is_equal(eq) = (x, y) -> recurse_is_equal(eq, x, y)
-recurse_is_equal(eq, x, y) = eq(x, y) #default
-recurse_is_equal(eq, x::AbstractDict, y::AbstractDict) = eq(x, y) && all(recurse_is_equal(eq, x[k], y[k]) for k in keys(x))
-recurse_is_equal(eq, x::NamedTuple, y::NamedTuple) = eq(x, y) && all(recurse_is_equal(eq, x[k], y[k]) for k in keys(x))
+recurse_is_equal(eq, x, y) = eq(x, y) #fallback
+recurse_is_equal(eq, x::Tuple, y::Tuple) = eq(x, y) && all(recurse_is_equal(eq, x[i], y[i]) for i in 1:length(x))
+recurse_is_equal(eq, x::KeyValueType, y::KeyValueType) = eq(x, y) && all(recurse_is_equal(eq, x[k], y[k]) for k in keys(x))
 recurse_is_equal(eq, x::JLCallOptions, y::JLCallOptions) = all(recurse_is_equal(eq, getproperty(x, k), getproperty(y, k)) for k in fieldnames(JLCallOptions))
 
 typed_is_equal(eq) = (x, y) -> typed_is_equal(eq, x, y)
 typed_is_equal(eq, x, y) = eq(x, y) && typeof(x) == typeof(y)
 
-is_eq(x, y) = recurse_is_equal(typed_is_equal(==), x, y) || pprint_compare((; x = x, y = y))
-is_eqq(x, y) = recurse_is_equal(typed_is_equal(===), x, y) || pprint_compare((; x = x, y = y))
+verbose_typed_is_equal(eq) = (x, y) -> verbose_typed_is_equal(eq, x, y)
+verbose_typed_is_equal(eq, x, y) = typed_is_equal(eq, x, y) || pprint_compare(x, y)
+
+is_eq(x, y) = recurse_is_equal(verbose_typed_is_equal(isequal), x, y)
+is_eqq(x, y) = recurse_is_equal(verbose_typed_is_equal(===), x, y)
+
+#### Custom types
+
+# Struct without custom matlabify; fields will not be recursively matlabified
+struct A
+    x
+    y
+end
+
+recurse_is_equal(eq, a1::A, a2::A) = recurse_is_equal(eq, (a1.x, a1.y), (a2.x, a2.y))
+
+# Struct with custom matlabify; fields will be recursively matlabified
+struct B
+    x
+    y
+end
+
+recurse_is_equal(eq, b1::B, b2::B) = recurse_is_equal(eq, (b1.x, b1.y), (b2.x, b2.y))
+
+MATDaemon.matlabify(b::B) = mxdict("x" => matlabify(b.x), "y" => matlabify(b.y))
+
+#### Building deeply nested types for testing
+
+function deeply_nested_pairs(; roundtrip = false)
+    # List of pairs of primitives which will be iteratively nested into various containers
+    ps = Any[
+        nothing                => mxempty(),
+        missing                => mxempty(),
+        1                      => 1,
+        2.0                    => 2.0,
+        "string"               => "string",
+        :symbol                => "symbol",
+        [3.0 4.0]              => [3.0 4.0],
+        ones(2, 3)             => ones(2, 3),
+        ones(Float32, 3, 1, 2) => ones(Float32, 3, 1, 2),
+        [3.0]                  => roundtrip ? 3.0 : [3.0],
+        ones(1, 1, 1)          => roundtrip ? 1.0 : ones(1, 1, 1),
+        zeros(1, 1, 2, 1)      => roundtrip ? zeros(1, 1, 2) : zeros(1, 1, 2, 1),
+        trues(2, 2)            => roundtrip ? fill(true, 2, 2) : trues(2, 2),
+    ]
+    nprimitives = length(ps)
+
+    # Push new pairs of various container types
+    for _ in 1:nprimitives
+        jl1, mx1 = ps[rand(1:end)]
+        jl2, mx2 = ps[rand(1:end)]
+        jl3, mx3 = ps[rand(1:end)]
+        mxdict_12 = mxdict("x" => mx1, "y" => mx2)
+
+        # tuple -> mxtuple
+        push!(ps, (jl1, jl2, jl3) => mxtuple(mx1, mx2, mx3))
+
+        # various associative containers => mxdict
+        push!(ps, (; x = jl1, y = jl2) => mxdict_12) # named tuple
+        push!(ps, pairs((; x = jl1, y = jl2)) => mxdict_12) # pairs iterator
+        push!(ps, Dict{String, Any}("x" => jl1, "y" => jl2) => mxdict_12) # dict with string keys
+        push!(ps, Dict{Symbol, Any}(:x => jl1, :y => jl2) => mxdict_12) # dict with symbol keys
+
+        # custom types
+        if !roundtrip
+            push!(ps, A(jl1, jl2) => A(jl1, jl2)) # default `matlabify` falls back to identity
+        end
+        push!(ps, B(jl1, jl2) => mxdict_12) # custom `matlabify` recursively converts fields
+    end
+
+    return ps
+end
 
 #### Pretty printing for deeply nested arguments
 
-function pprint_compare(args::NamedTuple)
-    for (k, v) in pairs(args)
-        @info "Argument: $k"
-        GarishPrint.pprint(v)
-        println("")
-    end
+struct PrettyCompare
+    arg1
+    arg2
+end
+
+function pprint_compare(x, y)
+    GarishPrint.pprint(PrettyCompare(x, y); compact = false, limit = false)
+    println("")
     return false
 end
 
-#### Convenience method for calling and testing jlcall
+#### Convenience method for calling and testing `MATDaemon.jlcall`
 
 function wrap_jlcall(f, f_args, f_kwargs, f_output; kwargs...)
     opts = JLCallOptions(;
-        f         = f,
-        workspace = initialize_workspace(),
-        debug     = true,
+        f = f,
+        workspace = jlcall_workspace(),
+        runtime = Base.julia_cmd()[1],
+        debug = false,
         kwargs...,
     )
     optsfile = joinpath(opts.workspace, MATDaemon.JL_OPTIONS)
@@ -73,4 +157,45 @@ function wrap_jlcall(f, f_args, f_kwargs, f_output; kwargs...)
         rm(opts.infile; force = true)
         rm(opts.outfile; force = true)
     end
+end
+
+#### Convenience method for calling `jlcall.m` via MATLAB.jl
+
+function mx_wrap_jlcall(
+        nargout::Int,
+        f::String = "(args...; kwargs...) -> nothing",
+        f_args::Tuple = (),
+        f_kwargs::NamedTuple = NamedTuple();
+        kwargs...
+    )
+
+    opts = JLCallOptions(;
+        f = f,
+        workspace = jlcall_workspace(),
+        debug = false,
+        gc = true,
+        port = 5678,
+        kwargs...
+    )
+    optsfile = joinpath(opts.workspace, MATDaemon.JL_OPTIONS)
+
+    mxargs = Any[
+        opts.f,
+        matlabify(f_args),
+        matlabify(f_kwargs),
+    ]
+
+    for k in fieldnames(JLCallOptions)
+        k === :f && continue
+        push!(mxargs, string(k))
+        push!(mxargs, getproperty(opts, k))
+    end
+
+    f_output = mxcall(:jlcall, nargout, mxargs...)
+
+    @test xor(isfile(optsfile), opts.gc)
+    @test xor(isfile(opts.infile), opts.gc)
+    @test xor(isfile(opts.outfile), opts.gc)
+
+    return f_output
 end

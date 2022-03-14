@@ -6,8 +6,9 @@ module MATDaemon
 import DaemonMode
 import MAT
 import MacroTools
+import Pkg
 
-using DocStringExtensions
+using DocStringExtensions: README, TYPEDFIELDS, TYPEDSIGNATURES
 
 # Options file for communicating with MATLAB
 const JL_OPTIONS = "jlcall_opts.mat"
@@ -52,7 +53,7 @@ Base.@kwdef struct JLCallOptions
     outfile::String      = tempname() * ".mat"
     "Julia runtime binary location"
     runtime::String      = abspath(Base.Sys.BINDIR, "julia")
-    "Julia project to add to LOAD_PATH"
+    "Julia project to activate before calling `f`"
     project::String      = ""
     "Number of threads to start Julia with"
     threads::Int         = Base.Threads.nthreads()
@@ -137,14 +138,16 @@ function init_environment(opts::JLCallOptions)
     # Change to current MATLAB working directory
     cd(abspath(opts.cwd))
 
-    # Push user project onto top of load path
-    if !isempty(opts.project) && abspath(opts.project) ∉ LOAD_PATH
-        pushfirst!(LOAD_PATH, abspath(opts.project))
-    end
-
-    # Push workspace into back of load path
-    if abspath(opts.workspace) ∉ LOAD_PATH
-        push!(LOAD_PATH, abspath(opts.workspace))
+    # Activate user project
+    if !isempty(opts.project)
+        proj_file = opts.project
+        if isdir(proj_file)
+            proj_file = joinpath(proj_file, "Project.toml")
+        end
+        if Pkg.project().path != abspath(proj_file)
+            # Passed project is not active; activate it
+            Pkg.activate(proj_file)
+        end
     end
 
     return nothing

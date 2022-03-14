@@ -1,5 +1,5 @@
 @testset "basic functionality" begin
-    @testset "Null outputs" begin
+    @testset "null outputs" begin
         # `Nothing` output is treated specially: MATLAB `varargout` output is empty, requesting output will error
         @test is_eqq(mx_wrap_jlcall(0, "() -> nothing"), nothing)
         @test_throws MEngineError mx_wrap_jlcall(1, "() -> nothing")
@@ -8,56 +8,21 @@
         @test is_eq(mx_wrap_jlcall(1, "() -> missing"), zeros(Float64, 0, 0))
     end
 
-    @testset "Nested (kw)args" begin
-        for (jl, mx) in [
-            (
-                a = 1,
-                b = "abc",
-                c = [1, 2],
-                d = ones(Float32, 3, 3)
-            ) => mxdict(
-                "a" => 1,
-                "b" => "abc",
-                "c" => [1, 2],
-                "d" => ones(Float32, 3, 3),
-            ),
-            (
-                a = (
-                    b = [1.0 2.0],
-                    c = (
-                        d = trues(2, 2),
-                        e = mxdict(
-                            "f" => [1.0],
-                        ),
-                    )
-                ),
-                g = zeros(1, 1, 2, 1),
-            ) => mxdict(
-                "a" => mxdict(
-                    "b" => [1.0 2.0],
-                    "c" => mxdict(
-                        "d" => fill(true, 2, 2),
-                        "e" => mxdict(
-                            "f" => 1.0,
-                        ),
-                    ),
-                ),
-                "g" => zeros(1, 1, 2),
-            )
-        ]
-            kwargs = deepcopy(jl)
-            ret = deepcopy(mx)
-            @test is_eq(mx_wrap_jlcall(1, "(args...; kwargs...) -> MATDaemon.matlabify(kwargs)", (), kwargs; modules = ["MATDaemon"]), ret)
+    @testset "nested args/kwargs" begin
+        ps = deeply_nested_pairs(; roundtrip = true)
+        jl_vec = Any[jl for (jl, mx) in ps]
+        mx_vec = Any[mx for (jl, mx) in ps]
+        jl_dict = Dict{Symbol, Any}(Symbol("k", i) => v for (i, v) in enumerate(jl_vec))
+        mx_dict = Dict{String, Any}("k$i" => v for (i, v) in enumerate(mx_vec))
 
-            args = deepcopy(values(jl))
-            ret = deepcopy(Any[mx[string(k)] for k in keys(jl)])
-            @test is_eq(mx_wrap_jlcall(1, "(args...; kwargs...) -> MATDaemon.matlabify(args)", args; modules = ["MATDaemon"]), ret)
-        end
+        @test is_eq(mx_wrap_jlcall(length(jl_vec), "(args...; kwargs...) -> args", (jl_vec...,)), (mx_vec...,))
+        @test is_eq(mx_wrap_jlcall(1, "(args...; kwargs...) -> kwargs", (), (; jl_dict...,)), mx_dict)
     end
 end
 
 @testset "local project" begin
-    @test is_eq(mx_wrap_jlcall(1, "TestProject.inner", ([1.0 2.0; 3.0 4.0; 5.0 6.0],); project = "TestProject", modules = ["TestProject"], restart = true), [35.0 44.0; 44.0 56.0])
+    @test is_eq(mx_wrap_jlcall(1, "TestProject.inner", ([1.0 2.0; 3.0 4.0; 5.0 6.0],); project = jlcall_test_project(), modules = ["TestProject"], restart = true), [35.0 44.0; 44.0 56.0])
+    @test is_eq(mx_wrap_jlcall(1, "() -> dirname(Pkg.project().path)"; modules = ["Pkg"], restart = false), jlcall_test_project())
 end
 
 @testset "setting threads" begin

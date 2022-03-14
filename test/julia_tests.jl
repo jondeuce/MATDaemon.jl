@@ -1,62 +1,5 @@
-struct A
-    x
-    y
-end
-recurse_is_equal(eq, x::A, y::A) = recurse_is_equal(eq, x.x, y.x) && recurse_is_equal(eq, x.y, y.y)
-
-struct B
-    x
-    y
-end
-recurse_is_equal(eq, x::B, y::B) = recurse_is_equal(eq, x.x, y.x) && recurse_is_equal(eq, x.y, y.y)
-
-MATDaemon.matlabify(b::B) = mxdict("x" => matlabify(b.x), "y" => matlabify(b.y))
-
 @testset "matlabify" begin
-    for (jl, mx) in [
-        nothing             => mxempty(),
-        missing             => mxempty(),
-        (1, "two", :three)  => mxtuple(1, "two", "three"),
-        Dict(:a => 1)       => mxdict("a" => 1),
-        (a = 1.0, b = 2)    => mxdict("a" => 1.0, "b" => 2),
-        pairs((a = "one",)) => mxdict("a" => "one"),
-        A(1//2, big"3")     => A(1//2, big"3"),
-        B(1.0, (2, :three)) => mxdict("x" => 1.0, "y" => mxtuple(2, "three")),
-        (
-            a = 1,
-            b = "abc",
-            c = [1, 2],
-            d = ones(Float32, 3, 3)
-        ) => mxdict(
-            "a" => 1,
-            "b" => "abc",
-            "c" => [1, 2],
-            "d" => ones(Float32, 3, 3),
-        ),
-        (
-            a = (
-                b = [1.0 2.0],
-                c = (
-                    d = trues(2, 2),
-                    e = mxdict(
-                        "f" => 1.0,
-                    ),
-                )
-            ),
-            g = Dict(:h => zeros(1, 1, 2, 1)),
-        ) => mxdict(
-            "a" => mxdict(
-                "b" => [1.0 2.0],
-                "c" => mxdict(
-                    "d" => trues(2, 2),
-                    "e" => mxdict(
-                        "f" => 1.0,
-                    ),
-                ),
-            ),
-            "g" => mxdict("h" => zeros(1, 1, 2, 1)),
-        )
-    ]
+    for (jl, mx) in deeply_nested_pairs(; roundtrip = false)
         @test is_eq(matlabify(jl), mx)
     end
 end
@@ -112,7 +55,7 @@ end
         (:f6, "@eval Main f6(x,y) = x*y",           mxtuple(3.0, 2),        mxdict(),           mxtuple(6.0),           NamedTuple()),
         (:f7, "@eval Main f7(x,y) = [x*y]",         mxtuple(3.0, 2),        mxdict(),           mxtuple(6.0),           NamedTuple()),
         (:f8, "@eval Main f8(x,y) = [x,y]",         mxtuple(3.0, 2.0),      mxdict(),           mxtuple([3.0, 2.0]),    NamedTuple()),
-        (:f9, "@eval Main f9(x) = Setup.mul2(x)",   mxtuple([2f0 3f0]),     mxdict(),           mxtuple([4f0 6f0]),     (setup = "setup.jl", project = "TestProject")),
+        (:f9, "@eval Main f9(x) = Setup.mul2(x)",   mxtuple([2f0 3f0]),     mxdict(),           mxtuple([4f0 6f0]),     (setup = "setup.jl", project = jlcall_test_project())),
     ]
         wrap_jlcall(f_str, f_args, f_kwargs, f_output; kwargs...)
         @test isdefined(Main, f_sym)

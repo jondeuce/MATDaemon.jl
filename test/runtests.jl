@@ -7,6 +7,9 @@ using GarishPrint
 using MAT
 using Pkg
 
+# This environment variable tells the `jlcall.jl` api script where to find the MATDaemon workspace folder
+ENV["MATDAEMON_WORKSPACE"] = mktempdir(; prefix = ".jlcall_", cleanup = true)
+
 # Try loading MATLAB
 RUN_MATLAB_TESTS = false
 try
@@ -25,6 +28,5 @@ include("julia_tests.jl")
 #### MATLAB tests
 
 if RUN_MATLAB_TESTS
-    include("matlab_utils.jl")
     include("matlab_tests.jl")
 end

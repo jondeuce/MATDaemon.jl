@@ -37,7 +37,7 @@ function varargout = jlcall(varargin)
 % 
 % ### Julia multithreading
 % 
-% The Julia server can be started with multiple threads by passing the 'threads' flag:
+% The number of threads used by the Julia server can be set using the 'threads' flag:
 % 
 %   >> JLCALL('() -> Base.Threads.nthreads()', 'threads', 8, 'restart', true)
 %   
@@ -47,7 +47,7 @@ function varargout = jlcall(varargin)
 %   
 %      8
 % 
-% The default value for 'threads' is given by the output of the MATLAB function maxNumCompThreads.
+% The default value for 'threads' is 'auto', deferring to Julia to choose the number of threads.
 % 
 % **Note:** Julia cannot change the number of threads at runtime.
 % In order for the 'threads' flag to take effect, the server must be restarted.
@@ -115,7 +115,7 @@ function varargout = jlcall(varargin)
 %       'project', '/path/to/MyProject', ...
 %       'modules', {'MyProject'})
 % 
-% **Note:** the value of the 'project' flag is simply added to the Julia LOAD_PATH; it is the user's responsibility to ensure that the project's dependencies have been installed.
+% **Note:** the string passed via the 'project' flag is simply forwarded to Pkg.activate; it is the user's responsibility to ensure that the project's dependencies have been installed.
 % 
 % ### Loading setup code
 % 
@@ -227,10 +227,6 @@ function [f_args, opts] = parse_inputs(varargin)
 
     p = inputParser;
 
-    % `maxNumCompThreads` had a deprecation warning in MATLAB R2015B,
-    % but is no longer deprecated; silence the warning for old versions.
-    warning('off', 'MATLAB:maxNumCompThreads:Deprecated')
-
     addOptional(p, 'f', '(args...; kwargs...) -> nothing', @ischar);
     addOptional(p, 'args', {}, @iscell);
     addOptional(p, 'kwargs', struct, @isstruct);
@@ -238,7 +234,7 @@ function [f_args, opts] = parse_inputs(varargin)
     addParameter(p, 'outfile', [tempname, '.mat'], @ischar);
     addParameter(p, 'runtime', try_find_julia_runtime, @ischar);
     addParameter(p, 'project', '', @ischar);
-    addParameter(p, 'threads', maxNumCompThreads, @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
+    addParameter(p, 'threads', 'auto', @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
     addParameter(p, 'setup', '', @ischar);
     addParameter(p, 'nofun', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'modules', {}, @iscell);
@@ -420,21 +416,19 @@ function try_run(opts, script, mode, msg)
         msg = 'Command';
     end
 
-    % Set Julia environment variables
-    setenv('JULIA_NUM_THREADS', num2str(opts.threads));
-    setenv('JULIA_PROJECT', opts.workspace);
+    % Set MATDaemon environment variables
     setenv('MATDAEMON_WORKSPACE', opts.workspace);
 
     % Set Julia binary path and flags
     switch mode
         case 'server'
-            flags = '--startup-file=no --optimize=3';
+            flags = sprintf('--project=%s --threads=%s --startup-file=no --optimize=3', opts.workspace, jl_threads(opts.threads));
             detach = ' &';
         case 'client'
-            flags = '--startup-file=no --optimize=0 --compile=min';
+            flags = sprintf('--project=%s --threads=%s --startup-file=no --optimize=0 --compile=min', opts.workspace, jl_threads(opts.threads));
             detach = '';
         case 'local'
-            flags = '--startup-file=no --optimize=3';
+            flags = sprintf('--project=%s --threads=%s --startup-file=no --optimize=3', opts.workspace, jl_threads(opts.threads));
             detach = '';
         otherwise
             error('Unknown mode: ''%s''', mode)
@@ -511,6 +505,16 @@ function str = jl_bool(bool)
         str = 'true';
     else
         str = 'false';
+    end
+
+end
+
+function str = jl_threads(threads)
+
+    if strcmpi(threads, 'auto')
+        str = 'auto';
+    else
+        str = num2str(threads);
     end
 
 end

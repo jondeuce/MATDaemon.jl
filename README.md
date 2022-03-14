@@ -47,7 +47,7 @@ ans =
 
 ### Julia multithreading
 
-The Julia server can be started with multiple threads by passing the `'threads'` flag:
+The number of threads used by the Julia server can be set using the `'threads'` flag:
 
 ```matlab
 >> jlcall('() -> Base.Threads.nthreads()', 'threads', 8, 'restart', true)
@@ -59,7 +59,7 @@ ans =
    8
 ```
 
-The default value for `'threads'` is given by the output of the MATLAB function `maxNumCompThreads`.
+The default value for `'threads'` is `'auto'`, deferring to Julia to choose the number of threads.
 
 **Note:** Julia cannot change the number of threads at runtime.
 In order for the `'threads'` flag to take effect, the server must be restarted.
@@ -137,7 +137,7 @@ Code from a local Julia project can be loaded and called:
     'modules', {'MyProject'})
 ```
 
-**Note:** the value of the `'project'` flag is simply added to the Julia `LOAD_PATH`; it is the user's responsibility to ensure that the project's dependencies have been installed.
+**Note:** the string passed via the `'project'` flag is simply forwarded to `Pkg.activate`; it is the user's responsibility to ensure that the project's dependencies have been installed.
 
 ### Loading setup code
 

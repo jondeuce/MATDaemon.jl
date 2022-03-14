@@ -2,15 +2,16 @@
 # User settings are loaded from the input file `MATDaemon.JL_OPTIONS` located in the jlcall.m workspace folder.
 # The workspace folder is passed using the environment variable `MATDAEMON_WORKSPACE`.
 
-# MATDaemon must be imported
+# MATDaemon must be available
 import MATDaemon
+import Pkg
 
 let
     # Load jlcall.m input parser results from workspace
     local workspace = ENV["MATDAEMON_WORKSPACE"]
     local opts = MATDaemon.load_options(workspace)
 
-    # Initialize load path etc.
+    # Initialize user project environment etc.
     MATDaemon.init_environment(opts)
 
     # Print environment for debugging
@@ -18,7 +19,8 @@ let
         println("* Environment for evaluating Julia expression:")
         println("*   Working dir: $(pwd())")
         println("*   Module: $(@__MODULE__)")
-        println("*   Load path: $(LOAD_PATH)\n")
+        println("*   Load path: $(LOAD_PATH)")
+        println("*   Active project: $(Pkg.project().path)", "\n")
     end
 
     # Include setup code
