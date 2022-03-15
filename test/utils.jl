@@ -18,24 +18,22 @@ function jlcall_workspace()
 end
 
 function jlcall_test_project()
-    testproj = joinpath(@__DIR__, "TestProject")
-    if !isfile(joinpath(testproj, "Manifest.toml"))
+    test_proj = joinpath(@__DIR__, "TestProject")
+    if !isfile(joinpath(test_proj, "Manifest.toml"))
         curr = Base.active_project()
-        Pkg.activate(testproj)
+        Pkg.activate(test_proj)
         Pkg.instantiate()
         Pkg.activate(curr)
     end
-    return testproj
+    return test_proj
 end
 
 #### Recursive, typed equality testing
 
-const KeyValueType = Union{<:AbstractDict,<:NamedTuple,<:Base.Iterators.Pairs}
-
 recurse_is_equal(eq) = (x, y) -> recurse_is_equal(eq, x, y)
 recurse_is_equal(eq, x, y) = eq(x, y) #fallback
 recurse_is_equal(eq, x::Tuple, y::Tuple) = eq(x, y) && all(recurse_is_equal(eq, x[i], y[i]) for i in 1:length(x))
-recurse_is_equal(eq, x::KeyValueType, y::KeyValueType) = eq(x, y) && all(recurse_is_equal(eq, x[k], y[k]) for k in keys(x))
+recurse_is_equal(eq, x::KeyValueContainer, y::KeyValueContainer) = eq(x, y) && all(recurse_is_equal(eq, x[k], y[k]) for k in keys(x))
 recurse_is_equal(eq, x::JLCallOptions, y::JLCallOptions) = all(recurse_is_equal(eq, getproperty(x, k), getproperty(y, k)) for k in fieldnames(JLCallOptions))
 
 typed_is_equal(eq) = (x, y) -> typed_is_equal(eq, x, y)
@@ -70,7 +68,7 @@ MATDaemon.matlabify(b::B) = mxdict("x" => matlabify(b.x), "y" => matlabify(b.y))
 #### Building deeply nested types for testing
 
 function deeply_nested_pairs(; roundtrip = false)
-    # List of pairs of primitives which will be iteratively nested into various containers
+    # List of pairs of primitive base cases
     ps = Any[
         nothing                => mxempty(),
         missing                => mxempty(),
@@ -78,17 +76,17 @@ function deeply_nested_pairs(; roundtrip = false)
         2.0                    => 2.0,
         "string"               => "string",
         :symbol                => "symbol",
+        [1.0, 2.0]             => [1.0, 2.0],
         [3.0 4.0]              => [3.0 4.0],
-        ones(2, 3)             => ones(2, 3),
-        ones(Float32, 3, 1, 2) => ones(Float32, 3, 1, 2),
+        ones(Float32, 1, 1, 2) => ones(Float32, 1, 1, 2),
         [3.0]                  => roundtrip ? 3.0 : [3.0],
         ones(1, 1, 1)          => roundtrip ? 1.0 : ones(1, 1, 1),
-        zeros(1, 1, 2, 1)      => roundtrip ? zeros(1, 1, 2) : zeros(1, 1, 2, 1),
-        trues(2, 2)            => roundtrip ? fill(true, 2, 2) : trues(2, 2),
+        zeros(1, 1, 2, 1, 1)   => roundtrip ? zeros(1, 1, 2) : zeros(1, 1, 2, 1, 1),
+        trues(1, 2)            => roundtrip ? fill(true, 1, 2) : trues(1, 2),
     ]
     nprimitives = length(ps)
 
-    # Push new pairs of various container types
+    # Iteratively build nested containers from primitives and push them to the list
     for _ in 1:nprimitives
         jl1, mx1 = ps[rand(1:end)]
         jl2, mx2 = ps[rand(1:end)]
@@ -111,7 +109,7 @@ function deeply_nested_pairs(; roundtrip = false)
         push!(ps, B(jl1, jl2) => mxdict_12) # custom `matlabify` recursively converts fields
     end
 
-    return ps
+    return map(deepcopy, ps)
 end
 
 #### Pretty printing for deeply nested arguments
@@ -133,7 +131,6 @@ function wrap_jlcall(f, f_args, f_kwargs, f_output; kwargs...)
     opts = JLCallOptions(;
         f = f,
         workspace = jlcall_workspace(),
-        runtime = Base.julia_cmd()[1],
         debug = false,
         kwargs...,
     )

@@ -3,6 +3,7 @@
 *.jl.cov
 *.jl.mem
 .DS_Store
+.vscode
 /dev/
 /docs/build/
 /docs/site/

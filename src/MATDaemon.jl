@@ -13,6 +13,9 @@ using DocStringExtensions: README, TYPEDFIELDS, TYPEDSIGNATURES
 # Options file for communicating with MATLAB
 const JL_OPTIONS = "jlcall_opts.mat"
 
+# Containers which are matlabified by iterating over `pairs`
+const KeyValueContainer = Union{<:AbstractDict, <:NamedTuple, <:Base.Iterators.Pairs}
+
 """
     matlabify(x)
 
@@ -23,7 +26,7 @@ matlabify(::Nothing) = zeros(Float64, 0, 0) # represent `Nothing` as MATLAB's `[
 matlabify(::Missing) = zeros(Float64, 0, 0) # represent `Missing` as MATLAB's `[]`
 matlabify(x::Symbol) = string(x)
 matlabify(xs::Tuple) = matlabify_iterable(xs)
-matlabify(xs::Union{<:AbstractDict, <:NamedTuple, <:Base.Iterators.Pairs}) = matlabify_pairs(xs)
+matlabify(xs::KeyValueContainer) = matlabify_pairs(xs)
 
 matlabify_iterable(xs) = Any[matlabify(x) for x in xs]
 matlabify_pairs(xs) = Dict{String, Any}(string(k) => matlabify(v) for (k, v) in pairs(xs))
@@ -46,39 +49,39 @@ $(TYPEDFIELDS)
 """
 Base.@kwdef struct JLCallOptions
     "User function to be parsed and evaluated"
-    f::String            = "(args...; kwargs...) -> nothing"
+    f::String               = "(args...; kwargs...) -> nothing"
     "MATLAB `.mat` file containing positional and keyword arguments for calling `f`"
-    infile::String       = tempname() * ".mat"
+    infile::String          = tempname(; cleanup = true) * ".mat"
     "MATLAB `.mat` file for writing outputs of `f` into"
-    outfile::String      = tempname() * ".mat"
+    outfile::String         = tempname(; cleanup = true) * ".mat"
     "Julia runtime binary location"
-    runtime::String      = abspath(Base.Sys.BINDIR, "julia")
+    runtime::String         = abspath(Base.Sys.BINDIR, "julia")
     "Julia project to activate before calling `f`"
-    project::String      = ""
-    "Number of threads to start Julia with"
-    threads::Int         = Base.Threads.nthreads()
+    project::String         = ""
+    "Number of Julia threads"
+    threads::Int            = Threads.nthreads()
     "Julia setup script to include before defining and calling the user function"
-    setup::String        = ""
+    setup::String           = ""
     "Treat `f` as a generic Julia expression, not a function: evaluate `f` and return `nothing`"
-    nofun::Bool          = false
+    nofun::Bool             = false
     "Julia modules to import before defining and calling the user function"
-    modules::Vector{Any} = Any[]
+    modules::Vector{Any}    = Any[]
     "Current working directory. Change path to this directory before loading code"
-    cwd::String          = pwd()
+    cwd::String             = pwd()
     "MATDaemon workspace. Local Julia project and temporary files for communication with MATLAB are stored here"
-    workspace::String    = mktempdir(; prefix = ".jlcall_", cleanup = true)
+    workspace::String       = mktempdir(; prefix = ".jlcall_", cleanup = true)
     "Start Julia instance on a local server using `DaemonMode.jl`"
-    server::Bool         = true
+    server::Bool            = true
     "Port to start Julia server on"
-    port::Int            = 3000
+    port::Int               = 3000
     "Julia code is loaded into a persistent server environment if true. Otherwise, load code in unique namespace"
-    shared::Bool         = true
+    shared::Bool            = true
     "Restart the Julia server before loading code"
-    restart::Bool        = false
+    restart::Bool           = false
     "Garbage collect temporary files after each call"
-    gc::Bool             = true
+    gc::Bool                = true
     "Print debugging information"
-    debug::Bool          = false
+    debug::Bool             = false
 end
 
 matlabify(opts::JLCallOptions) = Dict{String, Any}(string(k) => matlabify(getproperty(opts, k)) for k in fieldnames(JLCallOptions))
@@ -122,9 +125,12 @@ end
 Load [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m) input parser results from `workspace`.
 """
 function load_options(workspace::String)
-    maybevec(x) = x isa AbstractArray ? vec(x) : x
+    clean_value(k, v) =
+        k == "modules" ? vec(v) : # MATLAB vectors are passed as column matrices
+        k == "threads" && v == "auto" ? Threads.nthreads() : # Replace --threads=auto with threads from this session
+        v
     mxopts = MAT.matread(abspath(workspace, JL_OPTIONS))
-    kwargs = Dict{Symbol, Any}(Symbol(k) => maybevec(v) for (k, v) in mxopts)
+    kwargs = Dict{Symbol, Any}(Symbol(k) => clean_value(k, v) for (k, v) in mxopts)
     opts = JLCallOptions(; kwargs..., workspace = abspath(workspace))
     return opts
 end
@@ -144,7 +150,7 @@ function init_environment(opts::JLCallOptions)
         if isdir(proj_file)
             proj_file = joinpath(proj_file, "Project.toml")
         end
-        if Pkg.project().path != abspath(proj_file)
+        if Base.active_project() != abspath(proj_file)
             # Passed project is not active; activate it
             Pkg.activate(proj_file)
         end

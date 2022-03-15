@@ -50,7 +50,7 @@ ans =
 The number of threads used by the Julia server can be set using the `'threads'` flag:
 
 ```matlab
->> jlcall('() -> Base.Threads.nthreads()', 'threads', 8, 'restart', true)
+>> jlcall('() -> Threads.nthreads()', 'threads', 8, 'restart', true)
 
 ans =
 

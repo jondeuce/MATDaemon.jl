@@ -4,7 +4,6 @@
 
 # MATDaemon must be available
 import MATDaemon
-import Pkg
 
 let
     # Load jlcall.m input parser results from workspace
@@ -20,7 +19,7 @@ let
         println("*   Working dir: $(pwd())")
         println("*   Module: $(@__MODULE__)")
         println("*   Load path: $(LOAD_PATH)")
-        println("*   Active project: $(Pkg.project().path)", "\n")
+        println("*   Active project: $(Base.active_project())", "\n")
     end
 
     # Include setup code

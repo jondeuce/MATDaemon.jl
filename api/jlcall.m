@@ -39,7 +39,7 @@ function varargout = jlcall(varargin)
 % 
 % The number of threads used by the Julia server can be set using the 'threads' flag:
 % 
-%   >> JLCALL('() -> Base.Threads.nthreads()', 'threads', 8, 'restart', true)
+%   >> JLCALL('() -> Threads.nthreads()', 'threads', 8, 'restart', true)
 %   
 %   ans =
 %   
@@ -234,7 +234,7 @@ function [f_args, opts] = parse_inputs(varargin)
     addParameter(p, 'outfile', [tempname, '.mat'], @ischar);
     addParameter(p, 'runtime', try_find_julia_runtime, @ischar);
     addParameter(p, 'project', '', @ischar);
-    addParameter(p, 'threads', 'auto', @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
+    addParameter(p, 'threads', 'auto', @validate_threads);
     addParameter(p, 'setup', '', @ischar);
     addParameter(p, 'nofun', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'modules', {}, @iscell);
@@ -515,6 +515,18 @@ function str = jl_threads(threads)
         str = 'auto';
     else
         str = num2str(threads);
+    end
+
+end
+
+function validate_threads(x)
+
+    if ischar(x)
+        if ~strcmpi(x, 'auto')
+            error('Received value: ''%s''. Expected either ''auto'' or a positive integer', x)
+        end
+    else
+        validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'})
     end
 
 end

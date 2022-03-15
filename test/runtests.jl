@@ -1,6 +1,6 @@
 using Test
 using MATDaemon
-using MATDaemon: JLCallOptions, matlabify
+using MATDaemon: JLCallOptions, KeyValueContainer, matlabify
 
 using Distributed
 using GarishPrint

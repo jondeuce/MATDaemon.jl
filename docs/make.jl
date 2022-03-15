@@ -1,5 +1,5 @@
-push!(LOAD_PATH, joinpath(@__DIR__))
-push!(LOAD_PATH, joinpath(@__DIR__, ".."))
+pushfirst!(LOAD_PATH, @__DIR__)
+pushfirst!(LOAD_PATH, joinpath(@__DIR__, ".."))
 using Documenter, MATDaemon
 
 makedocs(;

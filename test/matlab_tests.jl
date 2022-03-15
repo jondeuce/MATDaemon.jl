@@ -22,17 +22,17 @@ end
 
 @testset "local project" begin
     @test is_eq(mx_wrap_jlcall(1, "TestProject.inner", ([1.0 2.0; 3.0 4.0; 5.0 6.0],); project = jlcall_test_project(), modules = ["TestProject"], restart = true), [35.0 44.0; 44.0 56.0])
-    @test is_eq(mx_wrap_jlcall(1, "() -> dirname(Pkg.project().path)"; modules = ["Pkg"], restart = false), jlcall_test_project())
+    @test is_eq(mx_wrap_jlcall(1, "() -> dirname(Base.active_project())"; restart = false), jlcall_test_project())
 end
 
 @testset "setting threads" begin
-    @test is_eq(mx_wrap_jlcall(1, "() -> Base.Threads.nthreads()"; threads = 3, restart = true), 3) # Restart Julia with --threads=3
-    @test is_eq(mx_wrap_jlcall(1, "() -> Base.Threads.nthreads()"; threads = 4), 3) # Setting threads shouldn't change active session
+    @test is_eq(mx_wrap_jlcall(1, "() -> Threads.nthreads()"; threads = 3, restart = true), 3) # Restart Julia with --threads=3
+    @test is_eq(mx_wrap_jlcall(1, "() -> Threads.nthreads()"; threads = 4), 3) # Setting threads shouldn't change active session
 end
 
 @testset "shared server environments" begin
     # Initialize shared server environment
-    @test is_eqq(mx_wrap_jlcall(0; setup = "setup.jl", shared = true, restart = true), nothing)
+    @test is_eqq(mx_wrap_jlcall(0; setup = joinpath(@__DIR__, "setup.jl"), shared = true, restart = true), nothing)
 
     # Call custom library code in persistent stateful environment
     @test is_eq(mx_wrap_jlcall(1, "Setup.mul2", ([1, 2],); shared = true), [2, 4])
@@ -47,7 +47,7 @@ end
     @test is_eqq(mx_wrap_jlcall(0; shared = false, restart = true), nothing)
 
     # Run custom code in each environment, requiring re-initialization each time
-    @test is_eq(mx_wrap_jlcall(1, "Setup.mul2", ([1, 2],); setup = "setup.jl", shared = false), [2, 4])
+    @test is_eq(mx_wrap_jlcall(1, "Setup.mul2", ([1, 2],); setup = joinpath(@__DIR__, "setup.jl"), shared = false), [2, 4])
     @test_throws MEngineError mx_wrap_jlcall(1, "Setup.mul2", ([1, 2],); shared = false)
 
     @test is_eq(mx_wrap_jlcall(1, "LinearAlgebra.norm", ([3.0, 4.0],); modules = ["LinearAlgebra", "Statistics"], shared = false), 5.0)
