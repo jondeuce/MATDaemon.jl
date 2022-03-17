@@ -396,11 +396,22 @@ function jl_script = build_julia_script(opts, pkgs, body)
     if ischar(pkgs); pkgs = {pkgs}; end
     if ischar(body); body = {body}; end
 
-    % Create temporary Julia script
+    % Create temporary file for Julia script
     jl_script = [workspace_tempname(opts), '.jl'];
     fid = fopen(jl_script, 'w');
     cleanup_fid = onCleanup(@() fclose(fid));
 
+    % MATDaemon workspace should always be on the Julia LOAD_PATH
+    preamble = {
+        'if !in(ENV["MATDAEMON_WORKSPACE"], LOAD_PATH)'
+        '    pushfirst!(LOAD_PATH, ENV["MATDAEMON_WORKSPACE"])'
+        'end'
+    };
+
+    % Build script
+    for ii = 1:length(preamble)
+        fprintf(fid, '%s\n', preamble{ii});
+    end
     for ii = 1:length(pkgs)
         fprintf(fid, 'import %s\n', pkgs{ii});
     end
