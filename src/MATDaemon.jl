@@ -152,7 +152,7 @@ function init_environment(opts::JLCallOptions)
         end
         if Base.active_project() != abspath(proj_file)
             # Passed project is not active; activate it
-            Pkg.activate(proj_file)
+            Pkg.activate(proj_file; io = devnull)
         end
     end
 

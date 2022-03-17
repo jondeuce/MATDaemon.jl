@@ -21,7 +21,7 @@
 end
 
 @testset "local project" begin
-    @test is_eq(mx_wrap_jlcall(1, "TestProject.inner", ([1.0 2.0; 3.0 4.0; 5.0 6.0],); project = jlcall_test_project(), modules = ["TestProject"], restart = true), [35.0 44.0; 44.0 56.0])
+    @test is_eq(mx_wrap_jlcall(1, "TestProject.dot", ([1.0, 2.0, 3.0],); project = jlcall_test_project(), modules = ["TestProject"], restart = true), 14.0)
     @test is_eq(mx_wrap_jlcall(1, "() -> dirname(Base.active_project())"; restart = false), jlcall_test_project())
 end
 

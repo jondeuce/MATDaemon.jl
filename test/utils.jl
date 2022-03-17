@@ -6,26 +6,35 @@ mxempty() = zeros(Float64, 0, 0)
 
 #### Temporary workspace
 
+function reset_active_project(f)
+    curr_proj = Base.active_project()
+    try
+        return f()
+    finally
+        Pkg.activate(curr_proj; io = devnull)
+    end
+end
+
 function jlcall_workspace()
     workspace = ENV["MATDAEMON_WORKSPACE"]
-    if !isfile(joinpath(workspace, "Project.toml"))
-        curr = Base.active_project()
-        Pkg.activate(workspace)
+    isfile(joinpath(workspace, "Project.toml")) && return workspace
+
+    reset_active_project() do
+        Pkg.activate(workspace; io = devnull)
         Pkg.develop(PackageSpec(path = realpath(joinpath(@__DIR__, ".."))); io = devnull)
-        Pkg.activate(curr)
+        return workspace
     end
-    return workspace
 end
 
 function jlcall_test_project()
     test_proj = joinpath(@__DIR__, "TestProject")
-    if !isfile(joinpath(test_proj, "Manifest.toml"))
-        curr = Base.active_project()
-        Pkg.activate(test_proj)
+    isfile(joinpath(test_proj, "Manifest.toml")) && return test_proj
+
+    reset_active_project() do
+        Pkg.activate(test_proj; io = devnull)
         Pkg.instantiate()
-        Pkg.activate(curr)
+        return test_proj
     end
-    return test_proj
 end
 
 #### Recursive, typed equality testing

@@ -2,10 +2,9 @@ module TestProject
 
 using StaticArrays
 
-function inner(x::AbstractMatrix)
-    m, n = size(x)
-    x = SMatrix{m,n}(x)
-    return Matrix(x' * x)
+function dot(x)
+    v = SVector(x...)
+    return v'v
 end
 
 end # module

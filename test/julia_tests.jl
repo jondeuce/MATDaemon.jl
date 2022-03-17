@@ -10,7 +10,7 @@ end
     addprocs(2)
     @everywhere begin
         using Pkg
-        Pkg.activate($(Base.active_project()))
+        Pkg.activate($(Base.active_project()); io = devnull)
         using MATDaemon
     end
 
@@ -40,7 +40,7 @@ end
 @testset "jlcall" begin
     # Test jlcall, ensuring that function definitions don't leak into Main
     for (i, (f, f_args, f_kwargs, f_output, kwargs)) in enumerate([
-        ("f1(x) = LinearAlgebra.norm(x)",    mxtuple([3.0, 4.0]),    mxdict(),           mxtuple(5.0),           (modules = ["LinearAlgebra"],)),
+        ("f1(x) = LinearAlgebra.norm(x)",    mxtuple([3.0, 4.0]),    mxdict(),           mxtuple(5.0),           (; modules = ["LinearAlgebra"],)),
         ("f2(x; y) = x*y",                   mxtuple(5.0),           mxdict("y" => 3),   mxtuple(15.0),          NamedTuple()),
         ("f3() = nothing",                   mxtuple(),              mxdict(),           mxtuple(),              NamedTuple()),
         ("f4() = missing",                   mxtuple(),              mxdict(),           mxtuple(mxempty()),     NamedTuple()),
@@ -55,7 +55,7 @@ end
         (:f6, "@eval Main f6(x,y) = x*y",           mxtuple(3.0, 2),        mxdict(),           mxtuple(6.0),           NamedTuple()),
         (:f7, "@eval Main f7(x,y) = [x*y]",         mxtuple(3.0, 2),        mxdict(),           mxtuple(6.0),           NamedTuple()),
         (:f8, "@eval Main f8(x,y) = [x,y]",         mxtuple(3.0, 2.0),      mxdict(),           mxtuple([3.0, 2.0]),    NamedTuple()),
-        (:f9, "@eval Main f9(x) = Setup.mul2(x)",   mxtuple([2f0 3f0]),     mxdict(),           mxtuple([4f0 6f0]),     (setup = joinpath(@__DIR__, "setup.jl"), project = jlcall_test_project())),
+        (:f9, "@eval Main f9(x) = Setup.mul2(x)",   mxtuple([2f0 3f0]),     mxdict(),           mxtuple([4f0 6f0]),     (; setup = joinpath(@__DIR__, "setup.jl"),)),
     ]
         wrap_jlcall(f_str, f_args, f_kwargs, f_output; kwargs...)
         @test isdefined(Main, f_sym)
@@ -68,4 +68,11 @@ end
     # Fix `f10` by extending `matlabify` to `VersionNumber`s
     MATDaemon.matlabify(v::Base.VersionNumber) = string(v)
     wrap_jlcall("Main.f10", mxtuple(), mxdict(), mxtuple(string(Base.VERSION)))
+
+    # Test local project
+    reset_active_project() do
+        wrap_jlcall("@eval Main f11 = TestProject.dot", mxtuple([1.0, 2.0, 3.0]), mxdict(), mxtuple(14.0); project = jlcall_test_project(), modules = ["TestProject"])
+        @test dirname(Base.active_project()) == jlcall_test_project()
+    end
+    @test isdefined(Main, :f11)
 end
