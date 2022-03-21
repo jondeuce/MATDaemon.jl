@@ -78,6 +78,8 @@ Base.@kwdef struct JLCallOptions
     shared::Bool            = true
     "Restart the Julia server before loading code"
     restart::Bool           = false
+    "Shut down the julia server and return"
+    shutdown::Bool          = false
     "Garbage collect temporary files after each call"
     gc::Bool                = true
     "Print debugging information"

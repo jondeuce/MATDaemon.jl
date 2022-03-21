@@ -41,6 +41,12 @@ In the event that the Julia server reaches an undesired state, the server can be
 >> jlcall('', 'restart', true) % restarts the Julia server and returns nothing
 ```
 
+Similarly, one can shutdown the Julia server without restarting it:
+
+```matlab
+>> jlcall('', 'shutdown', true) % shuts down the Julia server and returns nothing
+```
+
 ### Setting up the Julia environment
 
 Before calling Julia functions, it may be necessary or convenient to first set up the Julia environment. For example, one may wish to

@@ -33,6 +33,10 @@ function varargout = jlcall(varargin)
 % 
 %   >> JLCALL('', 'restart', true) % restarts the Julia server and returns nothing
 % 
+% Similarly, one can shutdown the Julia server without restarting it:
+% 
+%   >> JLCALL('', 'shutdown', true) % shuts down the Julia server and returns nothing
+% 
 % ### Setting up the Julia environment
 % 
 % Before calling Julia functions, it may be necessary or convenient to first set up the Julia environment.
@@ -231,7 +235,10 @@ function varargout = jlcall(varargin)
 
     % Optionally start persistent Julia server
     if opts.server
-        start_server(opts);
+        manage_server(opts);
+        if opts.shutdown
+            return
+        end
     end
 
     % Call Julia
@@ -260,6 +267,7 @@ function [f_args, opts] = parse_inputs(varargin)
     addParameter(p, 'port', 3000, @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
     addParameter(p, 'shared', true, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'restart', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
+    addParameter(p, 'shutdown', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'gc', true, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'debug', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
 
@@ -302,13 +310,16 @@ function init_workspace(opts)
 
 end
 
-function start_server(opts)
+function manage_server(opts)
 
     mlock % Prevent MATLAB from clearing persistent variables via e.g. `clear all`
     persistent cleanup_server % Julia server cleanup object
 
-    if opts.restart
+    if opts.restart || opts.shutdown
         cleanup_server = []; % triggers server cleanup, if server has been started
+        if opts.shutdown
+            return
+        end
     end
     is_server_off = isempty(cleanup_server);
 
@@ -456,15 +467,16 @@ function try_run(opts, script, mode, msg)
     setenv('MATDAEMON_WORKSPACE', opts.workspace);
 
     % Set Julia binary path and flags
+    flags = sprintf('--project=%s --threads=%s --startup-file=no', opts.workspace, jl_threads(opts.threads));
     switch mode
         case 'server'
-            flags = sprintf('--project=%s --threads=%s --startup-file=no --optimize=3', opts.workspace, jl_threads(opts.threads));
+            flags = [flags, ' --optimize=3'];
             detach = ' &';
         case 'client'
-            flags = sprintf('--project=%s --threads=%s --startup-file=no --optimize=0 --compile=min', opts.workspace, jl_threads(opts.threads));
+            flags = [flags, ' --optimize=0 --compile=min'];
             detach = '';
         case 'local'
-            flags = sprintf('--project=%s --threads=%s --startup-file=no --optimize=3', opts.workspace, jl_threads(opts.threads));
+            flags = [flags, ' --optimize=3'];
             detach = '';
         otherwise
             error('Unknown mode: ''%s''', mode)
