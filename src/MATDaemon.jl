@@ -55,7 +55,7 @@ Base.@kwdef struct JLCallOptions
     "MATLAB `.mat` file for writing outputs of `f` into"
     outfile::String         = tempname(; cleanup = true) * ".mat"
     "Julia runtime binary location"
-    runtime::String         = abspath(Base.Sys.BINDIR, "julia")
+    runtime::String         = joinpath(Base.Sys.BINDIR, "julia")
     "Julia project to activate before calling `f`"
     project::String         = ""
     "Number of Julia threads"
@@ -129,9 +129,9 @@ function load_options(workspace::String)
         k == "modules" ? vec(v) : # MATLAB vectors are passed as column matrices
         k == "threads" && v == "auto" ? Threads.nthreads() : # Replace --threads=auto with threads from this session
         v
-    mxopts = MAT.matread(abspath(workspace, JL_OPTIONS))
+    mxopts = MAT.matread(joinpath(workspace, JL_OPTIONS))
     kwargs = Dict{Symbol, Any}(Symbol(k) => clean_value(k, v) for (k, v) in mxopts)
-    opts = JLCallOptions(; kwargs..., workspace = abspath(workspace))
+    opts = JLCallOptions(; kwargs..., workspace = workspace)
     return opts
 end
 
@@ -142,15 +142,15 @@ Initialize [`jlcall`](@ref) environment.
 """
 function init_environment(opts::JLCallOptions)
     # Change to current MATLAB working directory
-    cd(abspath(opts.cwd))
+    cd(opts.cwd)
 
     # Activate user project
     if !isempty(opts.project)
-        proj_file = opts.project
+        proj_file = abspath(expanduser(opts.project))
         if isdir(proj_file)
             proj_file = joinpath(proj_file, "Project.toml")
         end
-        if Base.active_project() != abspath(proj_file)
+        if Base.active_project() != proj_file
             # Passed project is not active; activate it
             Pkg.activate(proj_file; io = devnull)
         end

@@ -24,7 +24,7 @@ let
 
     # Include setup code
     if !isempty(opts.setup)
-        include(abspath(opts.setup))
+        include(opts.setup)
     end
 
     # Load modules from strings; will fail if not installed
