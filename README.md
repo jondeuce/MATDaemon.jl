@@ -22,7 +22,7 @@ ans =
 ```
 
 The positional arguments passed to [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m) are:
-1. The Julia function to call, given as a MATLAB `char` array. This can be any Julia expression which evaluates to a function. For example, `'a=2; b=3; x -> a*x+b'`. **Note:** this expression is wrapped in a `let` block and evaluated in the global scope
+1. The Julia function to call, given as a MATLAB `char` array. This can be any Julia expression which evaluates to a function. For example, `'a=2; b=3; x -> a*x+b'`. For convenience, the empty string `''` is interpreted as `'(args...; kwargs...) -> nothing'`, returning `nothing` for any inputs. **Note:** expressions are wrapped in a `let` block and evaluated in the global scope
 2. Positional arguments, given as a MATLAB `cell` array. For example, `args = {arg1, arg2, ...}`
 3. Keyword arguments, given as a MATLAB `struct`. For example, `kwargs = struct('key1', value1, 'key2', value2, ...)`
 
@@ -38,12 +38,30 @@ The server will be automatically killed when MATLAB exits.
 In the event that the Julia server reaches an undesired state, the server can be restarted by passing the `'restart'` flag with value `true`:
 
 ```matlab
->> jlcall('x -> sum(abs2, x)', {1:5}, 'restart', true)
-
-ans =
-
-    55
+>> jlcall('', 'restart', true) % restarts the Julia server and returns nothing
 ```
+
+### Setting up the Julia environment
+
+Before calling Julia functions, it may be necessary or convenient to first set up the Julia environment. For example, one may wish to
+activate a local [project environment](https://github.com/jondeuce/MATDaemon.jl#loading-code-from-a-local-project),
+run [setup scripts](https://github.com/jondeuce/MATDaemon.jl#loading-setup-code),
+[import modules](https://github.com/jondeuce/MATDaemon.jl#loading-setup-code) for later use,
+or set the [number of threads](https://github.com/jondeuce/MATDaemon.jl#julia-multithreading) for running multithreaded code.
+
+This setup can be conveniently executed at the start of your MATLAB script with a single call to [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m) as follows:
+
+```matlab
+>> jlcall('', ...
+    'project', '/path/to/MyProject', ... % activate a local Julia Project
+    'setup', '/path/to/setup.jl', ... % run a setup script to load some custom Julia code
+    'modules', {'MyProject', 'LinearAlgebra', 'Statistics'}, ... % load a custom module and some modules from Base Julia
+    'threads', 'auto', ... % use the default number of Julia threads
+    'restart', true ... % start a fresh Julia server environment
+    )
+```
+
+See the corresponding sections below for more details about these flags.
 
 ### Julia multithreading
 
@@ -129,7 +147,7 @@ Elapsed time is 0.267088 seconds. % call server; significantly faster
 
 ### Loading code from a local project
 
-Code from a local Julia project can be loaded and called:
+Code from a [local Julia project](https://pkgdocs.julialang.org/v1/environments/) can be loaded and called:
 
 ```matlab
 >> jlcall('MyProject.my_function', args, kwargs, ...

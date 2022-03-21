@@ -4,7 +4,7 @@ function varargout = jlcall(varargin)
 % 
 % ## Quickstart
 % 
-% Use the MATLAB function <a href="matlab: web('https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m')">jlcall.m</a> to call Julia from MATLAB:
+% Use the MATLAB function JLCALL to call Julia from MATLAB:
 % 
 %   >> JLCALL('sort', {rand(2,5)}, struct('dims', int64(2)))
 %   
@@ -13,14 +13,16 @@ function varargout = jlcall(varargin)
 %       0.1270    0.2785    0.6324    0.8147    0.9575
 %       0.0975    0.5469    0.9058    0.9134    0.9649
 % 
-% The positional arguments passed to <a href="matlab: web('https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m')">jlcall.m</a> are:
-% 1. The Julia function to call, given as a MATLAB char array. This can be any Julia expression which evaluates to a function. For example, 'a=2; b=3; x -> a*x+b'. **Note:** this expression is wrapped in a let block and evaluated in the global scope
+% The positional arguments passed to JLCALL are:
+% 1. The Julia function to call, given as a MATLAB char array. This can be any Julia expression which evaluates to a function.
+%    For example, 'a=2; b=3; x -> a*x+b'. For convenience, the empty string '' is interpreted as '(args...; kwargs...) -> nothing', returning nothing for any inputs.
+%    NOTE: expressions are wrapped in a let block and evaluated in the global scope
 % 2. Positional arguments, given as a MATLAB cell array. For example, args = {arg1, arg2, ...}
 % 3. Keyword arguments, given as a MATLAB struct. For example, kwargs = struct('key1', value1, 'key2', value2, ...)
 % 
-% The first time <a href="matlab: web('https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m')">jlcall.m</a> is invoked:
-% 1. MATDaemon.jl will be installed into a local Julia project, if one does not already exist. By default, a folder .jlcall is created in the same folder as <a href="matlab: web('https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m')">jlcall.m</a>
-% 2. A Julia server will be started in the background using <a href="matlab: web('https://github.com/dmolina/DaemonMode.jl')">DaemonMode.jl</a>
+% The first time JLCALL is invoked:
+% 1. MATDaemon.jl will be installed into a local Julia project, if one does not already exist. By default, a folder .jlcall is created in the same folder as JLCALL
+% 2. A Julia server will be started in the background using DaemonMode.jl
 % 
 % All subsequent calls to Julia are run on the Julia server.
 % The server will be automatically killed when MATLAB exits.
@@ -29,11 +31,25 @@ function varargout = jlcall(varargin)
 % 
 % In the event that the Julia server reaches an undesired state, the server can be restarted by passing the 'restart' flag with value true:
 % 
-%   >> JLCALL('x -> sum(abs2, x)', {1:5}, 'restart', true)
-%   
-%   ans =
-%   
-%       55
+%   >> JLCALL('', 'restart', true) % restarts the Julia server and returns nothing
+% 
+% ### Setting up the Julia environment
+% 
+% Before calling Julia functions, it may be necessary or convenient to first set up the Julia environment.
+% For example, one may wish to activate a local project environment, run setup scripts, import modules for later use,
+% or set the number of threads for running multithreaded code.
+% 
+% This setup can be conveniently executed at the start of your MATLAB script with a single call to JLCALL as follows:
+% 
+%   >> JLCALL('', ...
+%      'project', '/path/to/MyProject', ... % activate a local Julia Project
+%      'setup', '/path/to/setup.jl', ... % run a setup script to load some custom Julia code
+%      'modules', {'MyProject', 'LinearAlgebra', 'Statistics'}, ... % load a custom module and some modules from Base Julia
+%      'threads', 'auto', ... % use the default number of Julia threads
+%      'restart', true ... % start a fresh Julia server environment
+%      )
+% 
+% See the corresponding sections below for more details about these flags.
 % 
 % ### Julia multithreading
 % 
@@ -49,7 +65,7 @@ function varargout = jlcall(varargin)
 % 
 % The default value for 'threads' is 'auto', deferring to Julia to choose the number of threads.
 % 
-% **Note:** Julia cannot change the number of threads at runtime.
+% NOTE: Julia cannot change the number of threads at runtime.
 % In order for the 'threads' flag to take effect, the server must be restarted.
 % 
 % ### Loading modules
@@ -62,12 +78,12 @@ function varargout = jlcall(varargin)
 %   
 %        5
 % 
-% **Note:** modules are loaded using import, not using. Module symbols must therefore be fully qualified, e.g. LinearAlgebra.norm in the above example as opposed to norm.
+% NOTE: modules are loaded using import, not using. Module symbols must therefore be fully qualified, e.g. LinearAlgebra.norm in the above example as opposed to norm.
 % 
 % ### Persistent environments
 % 
-% By default, previously loaded Julia code is available on subsequent calls to <a href="matlab: web('https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m')">jlcall.m</a>.
-% For example, following the <a href="matlab: web('https://github.com/jondeuce/MATDaemon.jl#loading-modules')">above call</a> to LinearAlgebra.norm, the LinearAlgebra.det function can be called without loading LinearAlgebra again:
+% By default, previously loaded Julia code is available on subsequent calls to JLCALL.
+% For example, following the above call to LinearAlgebra.norm, the LinearAlgebra.det function can be called without loading LinearAlgebra again:
 % 
 %   >> JLCALL('LinearAlgebra.det', {[1.0 2.0; 3.0 4.0]})
 %   
@@ -94,9 +110,9 @@ function varargout = jlcall(varargin)
 % 
 % ### Unique Julia instances
 % 
-% Instead of running Julia code on a persistent Julia server, unique Julia instances can be launched for each call to <a href="matlab: web('https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m')">jlcall.m</a> by passing the 'server' flag with value false.
+% Instead of running Julia code on a persistent Julia server, unique Julia instances can be launched for each call to JLCALL by passing the 'server' flag with value false.
 % 
-% **Note:** this may cause significant overhead when repeatedly calling <a href="matlab: web('https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m')">jlcall.m</a> due to Julia package precompilation and loading:
+% NOTE: this may cause significant overhead when repeatedly calling JLCALL due to Julia package precompilation and loading:
 % 
 %   >> tic; JLCALL('x -> sum(abs2, x)', {1:5}, 'server', false); toc
 %   Elapsed time is 4.181178 seconds. % call unique Julia instance
@@ -115,7 +131,7 @@ function varargout = jlcall(varargin)
 %       'project', '/path/to/MyProject', ...
 %       'modules', {'MyProject'})
 % 
-% **Note:** the string passed via the 'project' flag is simply forwarded to Pkg.activate; it is the user's responsibility to ensure that the project's dependencies have been installed.
+% NOTE: the string passed via the 'project' flag is simply forwarded to Pkg.activate; it is the user's responsibility to ensure that the project's dependencies have been installed.
 % 
 % ### Loading setup code
 % 
@@ -128,7 +144,7 @@ function varargout = jlcall(varargin)
 %   # setup.jl
 %   julia_version() = string(Base.VERSION)
 % 
-% Then, use the 'setup' flag to pass the above script to <a href="matlab: web('https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m')">jlcall.m</a>:
+% Then, use the 'setup' flag to pass the above script to JLCALL:
 % 
 %   >> JLCALL('julia_version', 'setup', '/path/to/setup.jl')
 %   
@@ -139,11 +155,11 @@ function varargout = jlcall(varargin)
 % In this case, JLCALL('() -> string(Base.VERSION)') would work just as well.
 % In general, however, interfacing with complex Julia libraries using MATLAB types may be nontrivial, and the 'setup' flag allows for the execution of arbitrary setup code.
 % 
-% **Note:** the setup script is loaded into the global scope using include; when using <a href="matlab: web('https://github.com/jondeuce/MATDaemon.jl#persistent-environments')">persistent environments</a>, symbols defined in the setup script will be available on subsequent calls to <a href="matlab: web('https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m')">jlcall.m</a>.
+% NOTE: the setup script is loaded into the global scope using include; when using persistent environments, symbols defined in the setup script will be available on subsequent calls to JLCALL.
 % 
 % ### Handling Julia outputs
 % 
-% Output(s) from Julia are returned using the MATLAB cell array <a href="matlab: web('https://www.mathworks.com/help/matlab/ref/varargout.html')">varargout</a>, MATLAB's variable-length list of output arguments.
+% Output(s) from Julia are returned using the MATLAB cell array varargout, MATLAB's variable-length list of output arguments.
 % A helper function MATDaemon.matlabify is used to convert Julia values into MATLAB-compatible values.
 % Specifically, the following rules are used to populate varargout with the Julia output y:
 % 
@@ -159,10 +175,10 @@ function varargout = jlcall(varargin)
 %   matlabify(xs::Tuple) = Any[matlabify(x) for x in xs] # matlabify values
 %   matlabify(xs::Union{<:AbstractDict, <:NamedTuple, <:Base.Iterators.Pairs}) = Dict{String, Any}(string(k) => matlabify(v) for (k, v) in pairs(xs)) # convert keys to strings and matlabify values
 % 
-% **Note:** MATLAB cell and struct types correspond to Array{Any} and Dict{String, Any} in Julia.
+% NOTE: MATLAB cell and struct types correspond to Array{Any} and Dict{String, Any} in Julia.
 % 
 % Conversion via matlabify can easily be extended to additional types.
-% Returning to the example from the <a href="matlab: web('https://github.com/jondeuce/MATDaemon.jl#loading-setup-code')">above section</a>, we can define a matlabify method for Base.VersionNumber:
+% Returning to the example from the above section, we can define a matlabify method for Base.VersionNumber:
 % 
 %   # setup.jl
 %   MATDaemon.matlabify(v::Base.VersionNumber) = string(v)
@@ -183,13 +199,13 @@ function varargout = jlcall(varargin)
 % This is now the default; 'infile' and 'outfile' are created via the MATLAB tempname function (thanks to @mauro3 for this tip).
 % 
 % Nevertheless, this naturally leads to some overhead when calling Julia, particularly when the MATLAB inputs and/or Julia outputs have large memory footprints.
-% It is therefore not recommended to use <a href="matlab: web('https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m')">jlcall.m</a> in performance critical loops.
+% It is therefore not recommended to use JLCALL in performance critical loops.
 % 
 % ## MATLAB and Julia version compatibility
 % 
 % This package has been tested on a variety of MATLAB versions.
 % However, for some versions of Julia and MATLAB, supported versions of external libraries may clash.
-% For example, running <a href="matlab: web('https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m')">jlcall.m</a> using Julia v1.6.1 and MATLAB R2015b gives the following error:
+% For example, running JLCALL using Julia v1.6.1 and MATLAB R2015b gives the following error:
 % 
 %   >> JLCALL
 %   
@@ -205,7 +221,7 @@ function varargout = jlcall(varargin)
 % 
 % This repository contains utilities for parsing and running Julia code, passing MATLAB arguments to Julia, and retrieving Julia outputs from MATLAB.
 % 
-% The workhorse behind MATDaemon.jl and <a href="matlab: web('https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m')">jlcall.m</a> is <a href="matlab: web('https://github.com/dmolina/DaemonMode.jl')">DaemonMode.jl</a> which is used to start a persistent Julia server in the background.
+% The workhorse behind MATDaemon.jl and JLCALL is <a href="matlab: web('https://github.com/dmolina/DaemonMode.jl')">DaemonMode.jl</a> which is used to start a persistent Julia server in the background.
 
     % Parse inputs
     [f_args, opts] = parse_inputs(varargin{:});
@@ -251,9 +267,18 @@ function [f_args, opts] = parse_inputs(varargin)
     opts = p.Results;
 
     % Split Julia `f` args and kwargs out from options
-    f_args(1).args = opts.args;
-    f_args(1).kwargs = opts.kwargs;
+    %   Note: must create `f_args` struct one field at a time as the `struct` constructor treats cell arrays specially;
+    %   e.g. `s = struct('args', args)` would have `size(s) == size(args)` and `s(ii).args == args{ii}`, as opposed to
+    %   the desired 1x1 struct `s` with `s.args == args`
+    f_args = struct;
+    f_args.args = opts.args;
+    f_args.kwargs = opts.kwargs;
     opts = rmfield(opts, {'args', 'kwargs'});
+
+    % For convenience, if `f` is empty replace it with a dummy function
+    if isempty(opts.f)
+        opts.f = '(args...; kwargs...) -> nothing';
+    end
 
 end
 
