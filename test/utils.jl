@@ -32,7 +32,7 @@ function jlcall_test_project()
 
     reset_active_project() do
         Pkg.activate(test_proj; io = devnull)
-        Pkg.instantiate()
+        Pkg.instantiate(; io = devnull)
         return test_proj
     end
 end

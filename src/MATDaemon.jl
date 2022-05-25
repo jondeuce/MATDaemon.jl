@@ -9,12 +9,34 @@ import MacroTools
 import Pkg
 
 using DocStringExtensions: README, TYPEDFIELDS, TYPEDSIGNATURES
+using Downloads: download
+
+export download_jlcall
 
 # Options file for communicating with MATLAB
 const JL_OPTIONS = "jlcall_opts.mat"
 
 # Containers which are matlabified by iterating over `pairs`
 const KeyValueContainer = Union{<:AbstractDict, <:NamedTuple, <:Base.Iterators.Pairs}
+
+"""
+    $(TYPEDSIGNATURES)
+
+Download or copy the `jlcall.m` MATLAB API function to the file `filename`.
+
+By default, `jlcall.m` is copied into the current working directory from the `api` subfolder of the installed `MATDaemon.jl` source tree.
+The latest version of `jlcall.m` can instead be downloaded from GitHub by passing `latest = true`.
+The destination `filename` can be overwritten if it exists by passing `force = true`.
+"""
+function download_jlcall(filename::String = joinpath(pwd(), "jlcall.m"); latest::Bool = false, force::Bool = false)
+    if latest
+        jlcall_github = "https://raw.githubusercontent.com/jondeuce/MATDaemon.jl/master/api/jlcall.m"
+        jlcall_local = download(jlcall_github)
+    else
+        jlcall_local = normpath(@__DIR__, "../api/jlcall.m")
+    end
+    cp(jlcall_local, filename; force = force)
+end
 
 """
     matlabify(x)

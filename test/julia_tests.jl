@@ -1,3 +1,15 @@
+@testset "download jlcall.m" begin
+    # Download from github
+    jlcall_path = tempname()
+    download_jlcall(jlcall_path; latest = true)
+    @test isfile(jlcall_path)
+
+    # Copy from api folder
+    download_jlcall(jlcall_path; force = true)
+    jlcall_local = normpath(@__DIR__, "../api/jlcall.m")
+    @test readlines(jlcall_path) == readlines(jlcall_local)
+end
+
 @testset "matlabify" begin
     for (jl, mx) in deeply_nested_pairs(; roundtrip = false)
         @test is_eq(matlabify(jl), mx)
