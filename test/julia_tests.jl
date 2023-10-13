@@ -97,6 +97,9 @@ end
     MATDaemon.matlabify(v::Base.VersionNumber) = string(v)
     wrap_jlcall("Main.f10", mxtuple(), mxdict(), mxtuple(string(Base.VERSION)))
 
+    # Check that `jlcall` warns user if called with wrong `jlcall.m` version number, but still tries to run
+    wrap_jlcall("x -> 2x", mxtuple(1), mxdict(), mxtuple(2); VERSION = "0.0.0")
+
     # Test local project
     reset_active_project() do
         wrap_jlcall("@eval Main f11 = TestProject.dot", mxtuple([1.0, 2.0, 3.0]), mxdict(), mxtuple(14.0); project = jlcall_test_project(), modules = ["TestProject"])
