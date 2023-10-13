@@ -14,15 +14,15 @@ function varargout = jlcall(varargin)
 %       0.0975    0.5469    0.9058    0.9134    0.9649
 %
 % The positional arguments passed to JLCALL are:
-% 1. The Julia function to call, given as a MATLAB char array. This can be any Julia expression which evaluates to a function.
-%    For example, 'a=2; b=3; x -> a*x+b'. For convenience, the empty string '' is interpreted as '(args...; kwargs...) -> nothing', returning nothing for any inputs.
-%    NOTE: expressions are wrapped in a let block and evaluated in the global scope
-% 2. Positional arguments, given as a MATLAB cell array. For example, args = {arg1, arg2, ...}
-% 3. Keyword arguments, given as a MATLAB struct. For example, kwargs = struct('key1', value1, 'key2', value2, ...)
+%   1. The Julia function to call, given as a MATLAB char array. This can be any Julia expression which evaluates to a function.
+%      For example, 'a=2; b=3; x -> a*x+b'. For convenience, the empty string '' is interpreted as '(args...; kwargs...) -> nothing', returning nothing for any inputs.
+%      NOTE: expressions are wrapped in a let block and evaluated in the global scope
+%   2. Positional arguments, given as a MATLAB cell array. For example, args = {arg1, arg2, ...}
+%   3. Keyword arguments, given as a MATLAB struct. For example, kwargs = struct('key1', value1, 'key2', value2, ...)
 %
 % The first time JLCALL is invoked:
-% 1. MATDaemon.jl will be installed into a local Julia project, if one does not already exist. By default, a folder .jlcall is created in the same folder as JLCALL
-% 2. A Julia server will be started in the background using DaemonMode.jl
+%   1. MATDaemon.jl will be installed into a local Julia project, if one does not already exist. By default, a folder .jlcall is created in the same folder as JLCALL
+%   2. A Julia server will be started in the background using DaemonMode.jl
 %
 % All subsequent calls to Julia are run on the Julia server.
 % The server will be automatically killed when MATLAB exits.
@@ -167,9 +167,9 @@ function varargout = jlcall(varargin)
 % A helper function MATDaemon.matlabify is used to convert Julia values into MATLAB-compatible values.
 % Specifically, the following rules are used to populate varargout with the Julia output y:
 %
-% 1. If y::Nothing, then varargout = {} and no outputs are returned to MATLAB
-% 2. If y::Tuple, then length(y) outputs are returned, with varargout{i} given by matlabify(y[i])
-% 3. Otherwise, one output is returned with varargout{1} given by matlabify(y)
+%   1. If y::Nothing, then varargout = {} and no outputs are returned to MATLAB
+%   2. If y::Tuple, then length(y) outputs are returned, with varargout{i} given by matlabify(y[i])
+%   3. Otherwise, one output is returned with varargout{1} given by matlabify(y)
 %
 % The following matlabify methods are defined by default:
 %
@@ -194,6 +194,18 @@ function varargout = jlcall(varargin)
 %   ans =
 %
 %       '1.6.1'
+%
+% ### Troubleshooting
+%
+% In case the Julia server gets into a bad state, the following troubleshooting tips may be helpful:
+%
+%   * Try restarting the server: JLCALL(..., 'restart', true)
+%   * Enable debug mode for verbose logging: JLCALL(..., 'debug', true)
+%   * Call Julia directly instead of calling the server: JLCALL(..., 'server', false)
+%       * This will be slower, since each call to JLCALL will start a new Julia instance, but it may <a href="matlab: web('https://github.com/jondeuce/MATDaemon.jl/issues/9#issuecomment-1761710048')">fix server issues on Windows</a>
+%   * Reinitialize the MATDaemon.jl workspace folder: JLCALL(..., 'reinstall', true)
+%       * By default, the workspace folder is named '.jlcall' and is stored in the same directory as JLCALL
+%       * The 'reinstall' flag deletes the workspace folder, forcing MATDaemon.jl to be reinstalled; you can also delete it manually
 %
 % ### Performance
 %
@@ -226,6 +238,9 @@ function varargout = jlcall(varargin)
 % This repository contains utilities for parsing and running Julia code, passing MATLAB arguments to Julia, and retrieving Julia outputs from MATLAB.
 %
 % The workhorse behind MATDaemon.jl and JLCALL is <a href="matlab: web('https://github.com/dmolina/DaemonMode.jl')">DaemonMode.jl</a> which is used to start a persistent Julia server in the background.
+%
+% This version of jlcall.m was written for MATDaemon v0.1.2.
+% MATDaemon was written by Jonathan Doucette (jdoucette@physics.ubc.ca).
 
     % Parse inputs
     [f_args, opts] = parse_inputs(varargin{:});
@@ -270,6 +285,9 @@ function [f_args, opts] = parse_inputs(varargin)
     addParameter(p, 'shutdown', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'gc', true, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'debug', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
+    addParameter(p, 'quiet', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
+    addParameter(p, 'reinstall', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
+    addParameter(p, 'VERSION', '0.1.2', @ischar); % NOTE: for internal use only
 
     parse(p, varargin{:});
     opts = p.Results;
@@ -292,6 +310,11 @@ end
 
 function init_workspace(opts)
 
+    % To reinstall, simply delete workspace folder if it exists
+    if opts.reinstall && exist(opts.workspace, 'dir')
+        rmdir(opts.workspace, 's')
+    end
+
     % Return if workspace is initialized
     if exist(opts.workspace, 'dir') && exist(fullfile(opts.workspace, 'Project.toml'), 'file')
         return
@@ -306,7 +329,7 @@ function init_workspace(opts)
         sprintf('Pkg.add("MATDaemon"; io = %s)', jl_maybe_stdout(opts.debug))
     });
 
-    try_run(opts, install_script, 'client', 'Running `MATDaemon` install script');
+    try_run(opts, install_script, 'client', 'Ran `MATDaemon` install script');
 
 end
 
@@ -326,7 +349,7 @@ function manage_server(opts)
     if is_server_off
         % Initialize Julia server
         if opts.debug
-            fprintf('* Starting Julia server\n\n');
+            fprintf('\n* Starting Julia server\n');
         end
 
         % If shared is false, each Julia server call is executed in it's own Module to avoid namespace collisions, etc.
@@ -334,7 +357,7 @@ function manage_server(opts)
             sprintf('MATDaemon.start(%d; shared = %s, verbose = %s)', opts.port, jl_bool(opts.shared), jl_bool(opts.debug))
         });
 
-        try_run(opts, start_script, 'server', 'Running `MATDaemon.start` script from Julia server');
+        try_run(opts, start_script, 'server', 'Ran `MATDaemon.start` script from Julia server');
 
         % Wait for server pong
         while ~ping_server(opts)
@@ -365,14 +388,14 @@ end
 function kill_server(opts)
 
     if opts.debug
-        fprintf('* Killing Julia server\n\n');
+        fprintf('\n* Killing Julia server\n');
     end
 
     kill_script = build_julia_script(opts, 'MATDaemon', {
         sprintf('MATDaemon.kill(%d; verbose = %s)', opts.port, jl_bool(opts.debug))
     });
 
-    try_run(opts, kill_script, 'client', 'Sending kill script to Julia server');
+    try_run(opts, kill_script, 'client', 'Sent kill script to Julia server');
 
     if opts.gc
         collect_garbage(opts);
@@ -400,10 +423,10 @@ function output = call_julia(f_args, opts)
         });
 
         % Call out to Julia server
-        try_run(opts, server_script, 'client', 'Sending `DaemonMode.runfile` script to Julia server');
+        try_run(opts, server_script, 'client', 'Sent `DaemonMode.runfile` script to Julia server');
     else
         % Call out to local Julia process
-        try_run(opts, job_script, 'local', 'Calling `MATDaemon.jlcall` from local Julia process');
+        try_run(opts, job_script, 'local', 'Called `MATDaemon.jlcall` from local Julia process');
     end
 
     % Load outputs from disk
@@ -413,7 +436,7 @@ function output = call_julia(f_args, opts)
     else
         % Throw error before garbage collecting below so that workspace folder can be inspected
         e.message = sprintf('Julia call failed to produce the expected output file:\n%s', opts.outfile);
-        e.identifier = 'jlcall:fileNotFound';
+        e.identifier = 'jlcall:outputFileNotFound';
         error(e)
     end
 
@@ -460,14 +483,14 @@ end
 function try_run(opts, script, mode, msg)
 
     if nargin < 4
-        msg = 'Command';
+        msg = 'Executed the following command';
     end
 
     % Set MATDaemon environment variables
     setenv('MATDAEMON_WORKSPACE', opts.workspace);
 
     % Set Julia binary path and flags
-    flags = sprintf('--project=%s --threads=%s --startup-file=no', opts.workspace, jl_threads(opts.threads));
+    flags = sprintf('--project=%s --threads=%s --startup-file=no --quiet', opts.workspace, jl_threads(opts.threads));
     switch mode
         case 'server'
             flags = [flags, ' --optimize=3'];
@@ -484,10 +507,21 @@ function try_run(opts, script, mode, msg)
 
     % Build and run Julia command
     cmd = [opts.runtime, ' ', flags, ' ', script, detach];
-    [st, ~] = system(cmd);
+    [st, res] = system(cmd);
+
+    % Display Julia I/O
+    if ~opts.quiet && ~isempty(res)
+        fprintf(res)
+    end
 
     if opts.debug
-        fprintf('* %s (status = %d):\n*   %s\n\n', msg, st, cmd);
+        fprintf('\n* %s (status = %d):\n*   %s\n', msg, st, cmd);
+    end
+
+    if st ~= 0
+        e.message = sprintf('Julia call failed (status = %d)', st);
+        e.identifier = 'jlcall:juliaCallFailed';
+        error(e)
     end
 
 end
@@ -506,20 +540,20 @@ function runtime = try_find_julia_runtime()
             return % default to 'julia'
         end
         if st == 0
-            runtime = splitlines(strtrim(res));
-            if numel(runtime) > 1
+            runtimes = splitlines(strtrim(res));
+            if numel(runtimes) > 1
                 runtime_list = '';
-                for ii = 1:numel(runtime)
-                    runtime_list = [runtime_list, num2str(ii), '. ', runtime{ii}, newline]; %#ok
+                for ii = 1:numel(runtimes)
+                    runtime_list = [runtime_list, num2str(ii), '. ', runtimes{ii}, newline]; %#ok
                 end
                 msg = {
                     'Found multiple Julia binaries:\n%s'
                     'Defaulting to the first binary path:\n%s'
                     '\nUse the ''runtime'' flag to explicitly set the ''julia'' binary path and suppress this warning.\n'
                 };
-                warning(strjoin(msg, newline), runtime_list, runtime{1})
+                warning(strjoin(msg, newline), runtime_list, runtimes{1})
             end
-            runtime = runtime{1};
+            runtime = runtimes{1};
         end
     catch me
         % ignore error; default to 'julia'

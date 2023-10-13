@@ -2,10 +2,12 @@ using Test
 using MATDaemon
 using MATDaemon: JLCallOptions, KeyValueContainer, matlabify
 
+using Aqua
 using Distributed
 using GarishPrint
 using MAT
 using Pkg
+using TOML
 
 # This environment variable tells the `jlcall.jl` api script where to find the MATDaemon workspace folder
 ENV["MATDAEMON_WORKSPACE"] = mktempdir(; prefix = ".jlcall_", cleanup = true)

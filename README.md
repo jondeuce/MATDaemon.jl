@@ -231,6 +231,18 @@ ans =
     '1.6.1'
 ```
 
+### Troubleshooting
+
+In case the Julia server gets into a bad state, the following troubleshooting tips may be helpful:
+
+* Try restarting the server: `jlcall(..., 'restart', true)`
+* Enable debug mode for verbose logging: `jlcall(..., 'debug', true)`
+* Call Julia directly instead of calling the server: `jlcall(..., 'server', false)`
+    * This will be slower, since each call to [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m) will start a new Julia instance, but it may [fix server issues on Windows](https://github.com/jondeuce/MATDaemon.jl/issues/9#issuecomment-1761710048)
+* Reinitialize the `MATDaemon.jl` workspace folder: `jlcall(..., 'reinstall', true)`
+    * By default, the workspace folder is named `.jlcall` and is stored in the same directory as [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m)
+    * The `'reinstall'` flag deletes the workspace folder, forcing `MATDaemon.jl` to be reinstalled; you can also delete it manually
+
 ### Performance
 
 MATLAB inputs and Julia ouputs are passed back and forth between MATLAB and the `DaemonMode.jl` server by writing to temporary `.mat` files.

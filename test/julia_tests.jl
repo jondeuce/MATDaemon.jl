@@ -1,3 +1,19 @@
+@testset "code quality (Aqua.jl)" begin
+    Aqua.test_all(MATDaemon)
+end
+
+@testset "version numbers" begin
+    MATDAEMON_PATH = pkgdir(MATDaemon)
+    proj = TOML.parsefile(joinpath(MATDAEMON_PATH, "Project.toml"))
+    jlcall_jl = readchomp(joinpath(MATDAEMON_PATH, "api", "jlcall.jl"))
+    jlcall_m = readchomp(joinpath(MATDAEMON_PATH, "api", "jlcall.m"))
+
+    @test MATDaemon.VERSION == VersionNumber(proj["version"])
+    @test contains(jlcall_jl, "was written for MATDaemon v$(MATDaemon.VERSION)")
+    @test contains(jlcall_m, "was written for MATDaemon v$(MATDaemon.VERSION)")
+    @test contains(jlcall_m, "addParameter(p, 'VERSION', '$(MATDaemon.VERSION)'")
+end
+
 @testset "download jlcall.m" begin
     # Download from github
     jlcall_path = tempname()

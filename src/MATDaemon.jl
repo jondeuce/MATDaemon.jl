@@ -3,6 +3,8 @@ $(README)
 """
 module MATDaemon
 
+const VERSION = v"0.1.2"
+
 import DaemonMode
 import MAT
 import MacroTools
@@ -106,6 +108,12 @@ Base.@kwdef struct JLCallOptions
     gc::Bool                = true
     "Print debugging information"
     debug::Bool             = false
+    "Suppress Julia I/O"
+    quiet::Bool             = false
+    "Reinstall MATDaemon workspace"
+    reinstall::Bool         = false
+    "Version number of jlcall.m"
+    VERSION::String         = string(VERSION)
 end
 
 matlabify(opts::JLCallOptions) = Dict{String, Any}(string(k) => matlabify(getproperty(opts, k)) for k in fieldnames(JLCallOptions))
@@ -117,7 +125,7 @@ Start Julia server.
 """
 function start(port::Int; shared::Bool, verbose::Bool = false)
     DaemonMode.serve(port, shared; print_stack = true, async = true, threaded = false)
-    verbose && println("* Julia server started\n")
+    verbose && println("\n* Julia server started")
     return nothing
 end
 
@@ -129,13 +137,13 @@ Kill Julia server. If server is already killed, do nothing.
 function kill(port::Int; verbose::Bool = false)
     try
         DaemonMode.sendExitCode(port)
-        verbose && println("* Julia server killed\n")
+        verbose && println("\n* Julia server killed")
     catch e
         if (e isa Base.IOError)
             #TODO: Check for proper error code:
             #   on linux: abs(e.code) == abs(Libc.ECONNREFUSED)
             #   on windows: ?
-            verbose && println("* Julia server inactive; nothing to kill\n")
+            verbose && println("\n* Julia server inactive; nothing to kill")
         else
             rethrow()
         end
@@ -153,9 +161,17 @@ function load_options(workspace::String)
         k == "modules" ? vec(v) : # MATLAB vectors are passed as column matrices
         k == "threads" && v == "auto" ? Threads.nthreads() : # Replace --threads=auto with threads from this session
         v
+
     mxopts = MAT.matread(joinpath(workspace, JL_OPTIONS))
     kwargs = Dict{Symbol, Any}(Symbol(k) => clean_value(k, v) for (k, v) in mxopts)
     opts = JLCallOptions(; kwargs..., workspace = workspace)
+
+    if VersionNumber(opts.VERSION) !== VERSION
+        @warn "MATDaemon version (v$(VERSION)) does not match jlcall.m version (v$(opts.VERSION)).\n" *
+            "This may lead to errors; please download the appropriate jlcall.m file from: \n" *
+            "    https://raw.githubusercontent.com/jondeuce/MATDaemon.jl/v$(VERSION)/api/jlcall.m"
+    end
+
     return opts
 end
 
@@ -193,7 +209,7 @@ function save_output(output, opts::JLCallOptions)
     try
         MAT.matwrite(opts.outfile, Dict{String, Any}("output" => output))
     catch e
-        println("* ERROR: Unable to write Julia output to .mat:\n*   ", opts.outfile, "\n")
+        println("\n* ERROR: Unable to write Julia output to .mat:\n*   ", opts.outfile)
         rm(opts.outfile; force = true)
         rethrow()
     end
@@ -211,10 +227,12 @@ function jlcall(f::F, opts::JLCallOptions) where {F}
     f_args = MAT.matread(opts.infile)
     args = juliafy_args(f_args["args"])
     kwargs = juliafy_kwargs(f_args["kwargs"])
-    out = f(args...; kwargs...)
+    output = f(args...; kwargs...)
 
     # Save results to workspace
-    save_output(matlabify_output(out), opts)
+    save_output(matlabify_output(output), opts)
+
+    return output
 end
 
 """
