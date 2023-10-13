@@ -3,7 +3,7 @@ $(README)
 """
 module MATDaemon
 
-const VERSION = v"0.1.2"
+const VERSION = v"0.1.3"
 
 import DaemonMode
 import MAT

@@ -239,7 +239,7 @@ function varargout = jlcall(varargin)
 %
 % The workhorse behind MATDaemon.jl and JLCALL is <a href="matlab: web('https://github.com/dmolina/DaemonMode.jl')">DaemonMode.jl</a> which is used to start a persistent Julia server in the background.
 %
-% This version of jlcall.m was written for MATDaemon v0.1.2.
+% This version of jlcall.m was written for MATDaemon v0.1.3.
 % MATDaemon was written by Jonathan Doucette (jdoucette@physics.ubc.ca).
 
     % Parse inputs
@@ -287,7 +287,7 @@ function [f_args, opts] = parse_inputs(varargin)
     addParameter(p, 'debug', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'quiet', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'reinstall', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
-    addParameter(p, 'VERSION', '0.1.2', @ischar); % NOTE: for internal use only
+    addParameter(p, 'VERSION', '0.1.3', @ischar); % NOTE: for internal use only
 
     parse(p, varargin{:});
     opts = p.Results;
