@@ -246,7 +246,7 @@ function varargout = jlcall(varargin)
     [f_args, opts] = parse_inputs(varargin{:});
 
     % Initialize workspace for communicating between MATLAB and Julia
-    init_workspace(opts);
+    opts = init_workspace(opts);
 
     % Optionally start persistent Julia server
     if opts.server
@@ -282,10 +282,12 @@ function [f_args, opts] = parse_inputs(varargin)
     addParameter(p, 'port', 3000, @(x) validateattributes(x, {'numeric'}, {'scalar', 'integer', 'positive'}));
     addParameter(p, 'shared', true, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'restart', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
+    addParameter(p, 'revise', true, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'shutdown', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'gc', true, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'debug', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'quiet', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
+    addParameter(p, 'update', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'reinstall', false, @(x) validateattributes(x, {'logical'}, {'scalar'}));
     addParameter(p, 'VERSION', '0.1.3', @ischar); % NOTE: for internal use only
 
@@ -308,28 +310,54 @@ function [f_args, opts] = parse_inputs(varargin)
 
 end
 
-function init_workspace(opts)
+function [opts] = init_workspace(opts)
 
     % To reinstall, simply delete workspace folder if it exists
     if opts.reinstall && exist(opts.workspace, 'dir')
         rmdir(opts.workspace, 's')
     end
 
-    % Return if workspace is initialized
-    if exist(opts.workspace, 'dir') && exist(fullfile(opts.workspace, 'Project.toml'), 'file')
-        return
+    % Create workspace if it doesn't exist
+    if ~is_workspace_initialized(opts)
+        % Ignored outputs are needed to mute "folder exists" warning
+        [~, ~] = mkdir(opts.workspace);
+
+        % Install dependencies into workspace
+        install_script = build_julia_script(opts, 'Pkg', {
+            'println("\n* Installing MATDaemon...")'
+            'Pkg.add("MATDaemon")'
+            'println("\n* Installing Revise...")'
+            'Pkg.add("Revise")'
+        });
+
+        try_run(opts, install_script, 'client', 'Ran install script');
+
+        if ~is_workspace_initialized(opts)
+            error("Failed to initialize workspace")
+        end
+
+        % Workspace (re-)installed; restart server
+        opts.restart = true;
     end
 
-    % Ignored outputs are needed to mute "folder exists" warning
-    [~, ~] = mkdir(opts.workspace);
+    if opts.update
+        % Update workspace dependencies
+        update_script = build_julia_script(opts, 'Pkg', {
+            'is_installed(pkg) = in((pkg, true), [(v.name, v.is_direct_dep) for (k, v) in Pkg.dependencies()])'
+            'maybe_add(pkg) = if !is_installed(pkg)'
+            '   println("\n* Installing ", pkg, "...")'
+            '   Pkg.add(pkg)'
+            'end'
+            'foreach(maybe_add, ["MATDaemon", "Revise"])'
+            'println("\n* Updating MATDaemon dependencies...")'
+            'Pkg.update()'
+        });
 
-    % Install MATDaemon into workspace
-    install_script = build_julia_script(opts, 'Pkg', {
-        'println("* Installing MATDaemon...\n")'
-        sprintf('Pkg.add("MATDaemon"; io = %s)', jl_maybe_stdout(opts.debug))
-    });
+        try_run(opts, update_script, 'client', 'Ran update script');
 
-    try_run(opts, install_script, 'client', 'Ran `MATDaemon` install script');
+        % Dependencies updated; restart server
+        opts.restart = true;
+    end
 
 end
 
@@ -353,7 +381,12 @@ function manage_server(opts)
         end
 
         % If shared is false, each Julia server call is executed in it's own Module to avoid namespace collisions, etc.
-        start_script = build_julia_script(opts, 'MATDaemon', {
+        pkgs = {'MATDaemon'};
+        if opts.revise
+            pkgs = {'Revise', pkgs{1}}; % Revise must be loaded before DaemonMode (i.e. before MATDaemon)
+        end
+
+        start_script = build_julia_script(opts, pkgs, {
             sprintf('MATDaemon.start(%d; shared = %s, verbose = %s)', opts.port, jl_bool(opts.shared), jl_bool(opts.debug))
         });
 
@@ -558,6 +591,14 @@ function runtime = try_find_julia_runtime()
     catch me
         % ignore error; default to 'julia'
     end
+
+end
+
+function [succ] = is_workspace_initialized(opts)
+
+    succ = exist(opts.workspace, 'dir') && ...
+        exist(fullfile(opts.workspace, 'Project.toml'), 'file') && ...
+        exist(fullfile(opts.workspace, 'Manifest.toml'), 'file');
 
 end
 

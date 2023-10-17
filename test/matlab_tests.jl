@@ -42,6 +42,28 @@ end
     @test is_eq(mx_wrap_jlcall(1, "x -> Statistics.mean(Setup.mul2(x))", ([1.0, 2.0, 3.0],); shared = true), 4.0)
 end
 
+@testset "revise" begin
+    mktempdir() do path
+        # Load script in fresh server instance and track with Revise
+        tracked_script = joinpath(path, "script.jl")
+        open(tracked_script; write = true) do io
+            println(io, "f1(x) = 2x")
+        end
+
+        @test is_eq(mx_wrap_jlcall(1, "f1", (1.0,); setup = tracked_script, revise = true, restart = true), 2.0)
+        @test_throws MEngineError mx_wrap_jlcall(1, "f2", ("cat",))
+
+        # Overwrite `f1` and add `f2` to tracked script
+        open(tracked_script; write = true) do io
+            println(io, "f1(x) = 3x")
+            println(io, "f2(s::String) = s * s")
+        end
+
+        @test is_eq(mx_wrap_jlcall(1, "f1", (1.0,)), 3.0)
+        @test is_eq(mx_wrap_jlcall(1, "f2", ("cat",)), "catcat")
+    end
+end
+
 @testset "unique server environments" begin
     # Initialize unique server environments
     @test is_eqq(mx_wrap_jlcall(0; shared = false, restart = true), nothing)
@@ -68,10 +90,13 @@ end
 end
 
 @testset "extending matlabify" begin
-    setup_script = tempname() * ".jl"
-    open(setup_script; write = true) do io
-        println(io, "MATDaemon.matlabify(v::Base.VersionNumber) = string(v)")
+    mktempdir() do path
+        setup_script = joinpath(path, "setup.jl")
+        open(setup_script; write = true) do io
+            println(io, "MATDaemon.matlabify(v::Base.VersionNumber) = string(v)")
+        end
+
+        # Note: restart = true is important, as it tests the ability to call dynamically defined `matlabify` methods
+        @test is_eq(mx_wrap_jlcall(1, "() -> Base.VERSION"; restart = true, setup = setup_script), string(Base.VERSION))
     end
-    # Note: restart = true is important, as it tests the ability to call dynamically defined `matlabify` methods
-    @test is_eq(mx_wrap_jlcall(1, "() -> Base.VERSION"; restart = true, setup = setup_script), string(Base.VERSION))
 end

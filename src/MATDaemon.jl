@@ -102,6 +102,8 @@ Base.@kwdef struct JLCallOptions
     shared::Bool            = true
     "Restart the Julia server before loading code"
     restart::Bool           = false
+    "Enable Revise on the Julia server"
+    revise::Bool            = true
     "Shut down the julia server and return"
     shutdown::Bool          = false
     "Garbage collect temporary files after each call"
@@ -110,13 +112,17 @@ Base.@kwdef struct JLCallOptions
     debug::Bool             = false
     "Suppress Julia I/O"
     quiet::Bool             = false
+    "Update MATDaemon workspace dependencies"
+    update::Bool            = false
     "Reinstall MATDaemon workspace"
     reinstall::Bool         = false
-    "Version number of jlcall.m"
+    "Version number of jlcall.m (NOTE: for internal use only)"
     VERSION::String         = string(VERSION)
 end
 
-matlabify(opts::JLCallOptions) = Dict{String, Any}(string(k) => matlabify(getproperty(opts, k)) for k in fieldnames(JLCallOptions))
+const JLCALLOPTIONS_FIELDS = Symbol[fieldnames(JLCallOptions)...]
+
+matlabify(opts::JLCallOptions) = Dict{String, Any}(string(k) => matlabify(getfield(opts, k)) for k in JLCALLOPTIONS_FIELDS)
 
 """
     $(TYPEDSIGNATURES)
@@ -163,12 +169,14 @@ function load_options(workspace::String)
         v
 
     mxopts = MAT.matread(joinpath(workspace, JL_OPTIONS))
-    kwargs = Dict{Symbol, Any}(Symbol(k) => clean_value(k, v) for (k, v) in mxopts)
+    kwargs = Dict{Symbol, Any}(Symbol(k) => clean_value(k, v) for (k, v) in mxopts if Symbol(k) ∈ JLCALLOPTIONS_FIELDS)
     opts = JLCallOptions(; kwargs..., workspace = workspace)
 
     if VersionNumber(opts.VERSION) !== VERSION
         @warn "MATDaemon version (v$(VERSION)) does not match jlcall.m version (v$(opts.VERSION)).\n" *
-            "This may lead to errors; please download the appropriate jlcall.m file from: \n" *
+            "If you are already using the latest jlcall.m, please update MATDaemon: \n\n" *
+            "   jlcall('', 'update', true) \n\n" *
+            "If you are already using the latest MATDaemon, please download the corresponding jlcall.m: \n\n" *
             "    https://raw.githubusercontent.com/jondeuce/MATDaemon.jl/v$(VERSION)/api/jlcall.m"
     end
 

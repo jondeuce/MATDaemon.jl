@@ -22,6 +22,7 @@ function jlcall_workspace()
     reset_active_project() do
         Pkg.activate(workspace; io = devnull)
         Pkg.develop(PackageSpec(path = realpath(joinpath(@__DIR__, ".."))); io = devnull)
+        Pkg.add("Revise"; io = devnull)
         return workspace
     end
 end
@@ -140,7 +141,9 @@ function wrap_jlcall(f, f_args, f_kwargs, f_output; kwargs...)
     opts = JLCallOptions(;
         f = f,
         workspace = jlcall_workspace(),
+        gc = true,
         debug = false,
+        quiet = true,
         kwargs...,
     )
     optsfile = joinpath(opts.workspace, MATDaemon.JL_OPTIONS)
@@ -178,8 +181,9 @@ function mx_wrap_jlcall(
     opts = JLCallOptions(;
         f = f,
         workspace = jlcall_workspace(),
-        debug = false,
         gc = true,
+        debug = false,
+        quiet = true,
         port = 5678,
         kwargs...
     )
@@ -197,11 +201,17 @@ function mx_wrap_jlcall(
         push!(mxargs, getproperty(opts, k))
     end
 
-    f_output = mxcall(:jlcall, nargout, mxargs...)
+    try
+        f_output = mxcall(:jlcall, nargout, mxargs...)
 
-    @test xor(isfile(optsfile), opts.gc)
-    @test xor(isfile(opts.infile), opts.gc)
-    @test xor(isfile(opts.outfile), opts.gc)
+        @test xor(isfile(optsfile), opts.gc)
+        @test xor(isfile(opts.infile), opts.gc)
+        @test xor(isfile(opts.outfile), opts.gc)
 
-    return f_output
+        return f_output
+    finally
+        rm(optsfile; force = true)
+        rm(opts.infile; force = true)
+        rm(opts.outfile; force = true)
+    end
 end

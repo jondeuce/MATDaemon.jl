@@ -5,12 +5,15 @@
 # This version of jlcall.jl was written for MATDaemon v0.1.3.
 # MATDaemon was written by Jonathan Doucette (jdoucette@physics.ubc.ca).
 
-# MATDaemon must be available
-import MATDaemon
-
 let
-    # Load jlcall.m input parser results from workspace
+    # Ensure MATDaemon workspace is in load path
     local workspace = ENV["MATDAEMON_WORKSPACE"]
+    if !(workspace ∈ LOAD_PATH)
+        pushfirst!(LOAD_PATH, workspace)
+    end
+
+    # Load jlcall.m input parser results
+    @eval import MATDaemon
     local opts = MATDaemon.load_options(workspace)
     local io = stdout
 
@@ -29,7 +32,12 @@ let
 
     # Include setup code
     if !isempty(opts.setup)
-        include(opts.setup)
+        if opts.server && opts.revise && opts.shared
+            @eval import Revise
+            Revise.includet(opts.setup)
+        else
+            include(opts.setup)
+        end
     end
 
     # Load modules from strings; will fail if not installed
@@ -56,7 +64,7 @@ let
         println(io, "\n* Evaluating Julia expression:")
     end
 
-    # Call `f`, loading MATLAB input arguments from `opts.infile`
+    # Call `f`, loading MATLAB input arguments from `opts.infile`,
     # and saving Julia outputs to `opts.outfile`
     local output = MATDaemon.jlcall(f, opts)
 

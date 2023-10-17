@@ -3,20 +3,26 @@
 end
 
 @testset "version numbers" begin
-    MATDAEMON_PATH = pkgdir(MATDaemon)
-    proj = TOML.parsefile(joinpath(MATDAEMON_PATH, "Project.toml"))
-    jlcall_jl = readchomp(joinpath(MATDAEMON_PATH, "api", "jlcall.jl"))
-    jlcall_m = readchomp(joinpath(MATDAEMON_PATH, "api", "jlcall.m"))
+    project_toml = TOML.parsefile(joinpath(@__DIR__, "..", "Project.toml"))
+    jlcall_jl = readchomp(joinpath(@__DIR__, "..", "api", "jlcall.jl"))
+    jlcall_m = readchomp(joinpath(@__DIR__, "..", "api", "jlcall.m"))
+    readme_md = readchomp(joinpath(@__DIR__, "..", "README.md"))
+    index_md = readchomp(joinpath(@__DIR__, "..", "docs", "src", "index.md"))
 
-    @test MATDaemon.VERSION == VersionNumber(proj["version"])
-    @test contains(jlcall_jl, "was written for MATDaemon v$(MATDaemon.VERSION)")
-    @test contains(jlcall_m, "was written for MATDaemon v$(MATDaemon.VERSION)")
-    @test contains(jlcall_m, "addParameter(p, 'VERSION', '$(MATDaemon.VERSION)'")
+    version = VersionNumber(project_toml["version"])
+    @test MATDaemon.VERSION == version
+    @test contains(jlcall_jl, "was written for MATDaemon v$(version)")
+    @test contains(jlcall_m, "was written for MATDaemon v$(version)")
+    @test contains(jlcall_m, "addParameter(p, 'VERSION', '$(version)'")
+    for md in [readme_md, index_md]
+        matches = eachmatch(r"jondeuce/MATDaemon\.jl/blob/v(?<version>\d\.\d\.\d)/api/jlcall\.m", md)
+        @test !isempty(matches) && all(VersionNumber(m["version"]) == version for m in matches)
+    end
 end
 
 @testset "download jlcall.m" begin
     # Download from github
-    jlcall_path = tempname()
+    jlcall_path = tempname() * ".m"
     download_jlcall(jlcall_path; latest = true)
     @test isfile(jlcall_path)
 
