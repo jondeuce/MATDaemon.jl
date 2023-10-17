@@ -32,7 +32,7 @@ The destination `filename` can be overwritten if it exists by passing `force = t
 """
 function download_jlcall(filename::String = joinpath(pwd(), "jlcall.m"); latest::Bool = false, force::Bool = false)
     if latest
-        jlcall_github = "https://raw.githubusercontent.com/jondeuce/MATDaemon.jl/master/api/jlcall.m"
+        jlcall_github = "https://raw.githubusercontent.com/jondeuce/MATDaemon.jl/v$(VERSION)/api/jlcall.m"
         jlcall_local = download(jlcall_github)
     else
         jlcall_local = normpath(@__DIR__, "../api/jlcall.m")
@@ -65,7 +65,7 @@ juliafy_kwargs(xs::Dict{String, Any}) = Pair{Symbol, Any}[Symbol(k) => v for (k,
 """
     JLCallOptions(; kwargs...)
 
-Julia struct for storing [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m) input parser results.
+Julia struct for storing [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/v$(VERSION)/api/jlcall.m) input parser results.
 
 Struct fields/keyword arguments for constructor:
 
@@ -154,7 +154,7 @@ end
 """
     $(TYPEDSIGNATURES)
 
-Load [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m) input parser results from `workspace`.
+Load [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/v$(VERSION)/api/jlcall.m) input parser results from `workspace`.
 """
 function load_options(workspace::String)
     clean_value(k, v) =
@@ -220,7 +220,7 @@ end
 """
     $(TYPEDSIGNATURES)
 
-Run Julia function `f` using [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m) input parser results `opts`.
+Run Julia function `f` using [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/v$(VERSION)/api/jlcall.m) input parser results `opts`.
 """
 function jlcall(f::F, opts::JLCallOptions) where {F}
     # Since `f` is dynamically defined in a global scope, try to force specialization on `f` (may help performance)
@@ -238,7 +238,7 @@ end
 """
     $(TYPEDSIGNATURES)
 
-Location of script for loading code, importing modules, and evaluating the function expression passed from [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/master/api/jlcall.m).
+Location of script for loading code, importing modules, and evaluating the function expression passed from [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/v$(VERSION)/api/jlcall.m).
 """
 jlcall_script() = joinpath(@__DIR__, "..", "api", "jlcall.jl")
 
