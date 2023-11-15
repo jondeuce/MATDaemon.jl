@@ -323,14 +323,15 @@ function [opts] = init_workspace(opts)
         [~, ~] = mkdir(opts.workspace);
 
         % Install dependencies into workspace
+        if ~opts.quiet || opts.debug
+            fprintf('\n* Installing MATDaemon environment...\n');
+        end
         install_script = build_julia_script(opts, 'Pkg', {
-            'println("\n* Installing MATDaemon...")'
-            'Pkg.add("MATDaemon")'
-            'println("\n* Installing Revise...")'
-            'Pkg.add("Revise")'
+            'Pkg.add(["MATDaemon", "Revise"])'
+            'Pkg.update()'
         });
 
-        try_run(opts, install_script, 'client', 'Ran install script');
+        try_run(opts, install_script, 'local', 'Ran install script');
 
         if ~is_workspace_initialized(opts)
             error("Failed to initialize workspace")
@@ -342,18 +343,15 @@ function [opts] = init_workspace(opts)
 
     if opts.update
         % Update workspace dependencies
+        if ~opts.quiet || opts.debug
+            fprintf('\n* Updating MATDaemon dependencies...\n');
+        end
         update_script = build_julia_script(opts, 'Pkg', {
-            'is_installed(pkg) = in((pkg, true), [(v.name, v.is_direct_dep) for (k, v) in Pkg.dependencies()])'
-            'maybe_add(pkg) = if !is_installed(pkg)'
-            '   println("\n* Installing ", pkg, "...")'
-            '   Pkg.add(pkg)'
-            'end'
-            'foreach(maybe_add, ["MATDaemon", "Revise"])'
-            'println("\n* Updating MATDaemon dependencies...")'
+            'Pkg.add(["MATDaemon", "Revise"])'
             'Pkg.update()'
         });
 
-        try_run(opts, update_script, 'client', 'Ran update script');
+        try_run(opts, update_script, 'local', 'Ran update script');
 
         % Dependencies updated; restart server
         opts.restart = true;
@@ -543,7 +541,7 @@ function try_run(opts, script, mode, msg)
     [st, res] = system(cmd);
 
     % Display Julia I/O
-    if ~opts.quiet && ~isempty(res)
+    if (~opts.quiet || opts.debug) && ~isempty(res)
         fprintf(res)
     end
 
