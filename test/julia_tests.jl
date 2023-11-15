@@ -1,5 +1,7 @@
 @testset "code quality (Aqua.jl)" begin
-    Aqua.test_all(MATDaemon)
+    # TODO: Dependency compat bounds should be tested, but currently[1] there is an issue with how to specify bounds for standard libraries
+    #   [1] https://discourse.julialang.org/t/psa-compat-requirements-in-the-general-registry-are-changing/104958#update-november-9th-2023-2
+    Aqua.test_all(MATDaemon; deps_compat = false)
 end
 
 @testset "version numbers" begin

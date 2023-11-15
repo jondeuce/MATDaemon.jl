@@ -2,7 +2,7 @@
 # User settings are loaded from the input file `MATDaemon.JL_OPTIONS` located in the jlcall.m workspace folder.
 # The workspace folder is passed using the environment variable `MATDAEMON_WORKSPACE`.
 #
-# This version of jlcall.jl was written for MATDaemon v0.1.3.
+# This version of jlcall.jl was written for MATDaemon v0.1.4.
 # MATDaemon was written by Jonathan Doucette (jdoucette@physics.ubc.ca).
 
 let
