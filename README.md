@@ -8,6 +8,22 @@
 
 Call Julia from MATLAB using a Julia daemon launched by [`DaemonMode.jl`](https://github.com/dmolina/DaemonMode.jl).
 
+## Installation
+
+Download the MATLAB function [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/v0.1.4/api/jlcall.m) from the `api` subfolder of the `MATDaemon.jl` github repository and run
+
+```matlab
+>> jlcall
+```
+
+in the MATLAB console.
+The first time [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/v0.1.4/api/jlcall.m) is invoked in a MATLAB session:
+1. A local Julia project `.jlcall/Project.toml` will be created, if it does not already exist, to which `MATDaemon.jl` and dependencies are added. The folder `.jlcall` is stored in the same directory as the downloaded copy of [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/v0.1.4/api/jlcall.m).
+2. A Julia server will be started in the background using [`DaemonMode.jl`](https://github.com/dmolina/DaemonMode.jl) which loads `MATDaemon.jl`.
+
+All subsequent calls to Julia via [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/v0.1.4/api/jlcall.m) are run on the Julia server.
+The server will be automatically killed when MATLAB exits.
+
 ## Quickstart
 
 Use the MATLAB function [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/v0.1.4/api/jlcall.m) to call Julia from MATLAB:
@@ -25,13 +41,6 @@ The positional arguments passed to [`jlcall.m`](https://github.com/jondeuce/MATD
 1. The Julia function to call, given as a MATLAB `char` array. This can be any Julia expression which evaluates to a function. For example, `'a=2; b=3; x -> a*x+b'`. For convenience, the empty string `''` is interpreted as `'(args...; kwargs...) -> nothing'`, returning `nothing` for any inputs. **Note:** expressions are wrapped in a `let` block and evaluated in the global scope
 2. Positional arguments, given as a MATLAB `cell` array. For example, `args = {arg1, arg2, ...}`
 3. Keyword arguments, given as a MATLAB `struct`. For example, `kwargs = struct('key1', value1, 'key2', value2, ...)`
-
-The first time [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/v0.1.4/api/jlcall.m) is invoked:
-1. `MATDaemon.jl` will be installed into a local Julia project, if one does not already exist. By default, a folder `.jlcall` is created in the same folder as [`jlcall.m`](https://github.com/jondeuce/MATDaemon.jl/blob/v0.1.4/api/jlcall.m)
-2. A Julia server will be started in the background using [`DaemonMode.jl`](https://github.com/dmolina/DaemonMode.jl)
-
-All subsequent calls to Julia are run on the Julia server.
-The server will be automatically killed when MATLAB exits.
 
 ### Restarting the Julia server
 

@@ -2,6 +2,20 @@ function varargout = jlcall(varargin)
 % JLCALL Call Julia from MATLAB using a Julia daemon launched by <a href="matlab: web('https://github.com/dmolina/DaemonMode.jl')">DaemonMode.jl</a>.
 % Find the full documentation at the <a href="matlab: web('https://github.com/jondeuce/MATDaemon.jl')">MATDaemon.jl GitHub repository</a>.
 %
+% ## Installation
+%
+% Download the MATLAB function JLCALL from the api subfolder of the MATDaemon.jl github repository and run
+%
+%   >> JLCALL
+%
+% in the MATLAB console. The first time JLCALL is invoked in a MATLAB session:
+%   1. A local Julia project .jlcall/Project.toml will be created, if it does not already exist, to which MATDaemon.jl and dependencies are added.
+%      The folder .jlcall is stored in the same directory as the downloaded copy of JLCALL.
+%   2. A Julia server will be started in the background using DaemonMode.jl which loads MATDaemon.jl.
+%
+% All subsequent calls to Julia via JLCALL are run on the Julia server.
+% The server will be automatically killed when MATLAB exits.
+%
 % ## Quickstart
 %
 % Use the MATLAB function JLCALL to call Julia from MATLAB:
