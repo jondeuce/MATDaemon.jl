@@ -279,6 +279,8 @@ Message: /usr/local/MATLAB/R2015b/sys/os/glnxa64/libstdc++.so.6: version `GLIBCX
 
 This error results due to a clash of supported `libstdc++` versions, and does not occur when using e.g. Julia v1.5.4 with MATLAB R2015b, or Julia v1.6.1 with MATLAB R2020b.
 
+On unix systems, running `setenv('LD_LIBRARY_PATH', '');` before `jlcall` can sometimes force MATLAB and MATDaemon to find and use the same external libraries; see [this issue](https://github.com/jondeuce/MATDaemon.jl/issues/16) and [this MATLAB help centre answer](https://www.mathworks.com/matlabcentral/answers/1809260-what-is-ld_library_path-when-setting-up-matlab#answer_1057825) for more information.
+
 If you encounter this issue, see the [`Julia`](https://github.com/JuliaLang/julia/blob/master/doc/build/build.md#required-build-tools-and-external-libraries) and [`MATLAB`](https://www.mathworks.com/support/requirements/supported-compilers.html) documentation for information on mutually supported external libraries.
 
 ## About this package
