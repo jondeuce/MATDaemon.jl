@@ -166,6 +166,7 @@ function load_options(workspace::String)
     clean_value(k, v) =
         k == "modules" ? vec(v) : # MATLAB vectors are passed as column matrices
         k == "threads" && v == "auto" ? Threads.nthreads() : # Replace --threads=auto with threads from this session
+        v isa AbstractVector{<:AbstractString} && isempty(v) ? "" : # MAT.jl >= 0.12 reads empty strings as `String[]`
         v
 
     mxopts = MAT.matread(joinpath(workspace, JL_OPTIONS))
